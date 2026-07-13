@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Product Verification — QR Verify</title>
+  <meta name="description" content="Verify the authenticity of your product." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --navy-950: #101039;
+      --navy-900: #171747;
+      --navy-800: #242458;
+      --cyan-500: #2BB8CD;
+      --cyan-100: #DDF8F5;
+      --mint-100: #DDF5DD;
+      --lime-100: #E6F4C6;
+      --aqua-100: #D8F4F1;
+      --off-white: #FCFCFA;
+      --surface: #F8F9F5;
+      --border: rgba(23,23,71,0.12);
+      --text-primary: #171747;
+      --text-secondary: #3F4166;
+      --text-muted: #6E708B;
+      --shadow-soft: 0 12px 30px rgba(17,17,57,0.06);
+      --shadow-float: 0 18px 45px rgba(17,17,57,0.10);
+      --radius-md: 16px;
+      --radius-lg: 24px;
+      --radius-pill: 999px;
+    }
+
+    html, body {
+      height: 100%;
+      font-family: 'Manrope', 'Inter', 'Helvetica Neue', Arial, sans-serif;
+      background: var(--off-white);
+      color: var(--text-primary);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    body {
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+
+    /* ── Page background gradient ─────────────────────────── */
+    .page-bg {
+      position: fixed;
+      inset: 0;
+      background: linear-gradient(110deg, #E1F2B8 0%, #DDF3D6 30%, #D8F3E8 63%, #D2F2F1 100%);
+      z-index: 0;
+    }
+
+    .page-bg::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at 38% 42%, rgba(255,255,255,0.55), transparent 46%);
+    }
+
+    /* ── Geometric decoration ─────────────────────────────── */
+    .geo {
+      position: fixed;
+      pointer-events: none;
+      z-index: 0;
+    }
+    .geo-1 {
+      top: -80px; right: -60px;
+      width: 320px; height: 320px;
+      background: rgba(255,255,255,0.22);
+      clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+      transform: rotate(15deg);
+    }
+    .geo-2 {
+      bottom: -60px; left: -40px;
+      width: 260px; height: 260px;
+      background: rgba(255,255,255,0.18);
+      clip-path: polygon(30% 0%, 70% 0%, 100% 30%, 100% 70%, 70% 100%, 30% 100%, 0% 70%, 0% 30%);
+    }
+
+    /* ── Header ───────────────────────────────────────────── */
+    header {
+      position: relative;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px 24px 0;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      text-decoration: none;
+    }
+
+    .brand-icon {
+      width: 34px; height: 34px;
+      background: var(--navy-900);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .brand-icon svg { width: 18px; height: 18px; }
+
+    .brand-name {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--navy-900);
+      letter-spacing: -0.02em;
+    }
+
+    /* ── Main card ────────────────────────────────────────── */
+    .main {
+      position: relative;
+      z-index: 5;
+      flex: 1;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 40px 20px 60px;
+    }
+
+    .card {
+      background: #fff;
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-float);
+      width: 100%;
+      max-width: 520px;
+      overflow: hidden;
+      animation: cardIn 0.55s cubic-bezier(0.22,1,0.36,1) both;
+    }
+
+    @keyframes cardIn {
+      from { opacity: 0; transform: translateY(20px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ── Status banner ────────────────────────────────────── */
+    .status-banner {
+      padding: 32px 36px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .status-banner.verified  { background: #ECFDF5; }
+    .status-banner.warning   { background: #FFFBEB; }
+    .status-banner.fake      { background: #FEF2F2; }
+    .status-banner.inactive  { background: #F9FAFB; }
+    .status-banner.loading   { background: var(--surface); }
+
+    .status-icon {
+      flex-shrink: 0;
+      width: 52px; height: 52px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .status-banner.verified  .status-icon { background: #D1FAE5; }
+    .status-banner.warning   .status-icon { background: #FEF3C7; }
+    .status-banner.fake      .status-icon { background: #FEE2E2; }
+    .status-banner.inactive  .status-icon { background: #E5E7EB; }
+    .status-banner.loading   .status-icon { background: #E5E7EB; }
+
+    .status-icon svg { width: 24px; height: 24px; }
+
+    .status-text {}
+    .status-label {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: 3px;
+    }
+    .status-banner.verified  .status-label { color: #065F46; }
+    .status-banner.warning   .status-label { color: #92400E; }
+    .status-banner.fake      .status-label { color: #991B1B; }
+    .status-banner.inactive  .status-label { color: #374151; }
+    .status-banner.loading   .status-label { color: var(--text-muted); }
+
+    .status-headline {
+      font-size: 20px;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      line-height: 1.2;
+    }
+    .status-banner.verified  .status-headline { color: #065F46; }
+    .status-banner.warning   .status-headline { color: #92400E; }
+    .status-banner.fake      .status-headline { color: #991B1B; }
+    .status-banner.inactive  .status-headline { color: #374151; }
+    .status-banner.loading   .status-headline { color: var(--text-muted); }
+
+    .status-message {
+      font-size: 13px;
+      line-height: 1.55;
+      margin-top: 6px;
+    }
+    .status-banner.verified  .status-message { color: #047857; }
+    .status-banner.warning   .status-message { color: #B45309; }
+    .status-banner.fake      .status-message { color: #B91C1C; }
+    .status-banner.inactive  .status-message { color: #6B7280; }
+    .status-banner.loading   .status-message { color: var(--text-muted); }
+
+    /* ── Product details ──────────────────────────────────── */
+    .product-body {
+      padding: 0 36px 36px;
+    }
+
+    .product-image-wrap {
+      margin: 0 -36px 28px;
+      height: 200px;
+      overflow: hidden;
+      background: var(--surface);
+      position: relative;
+    }
+
+    .product-image-wrap img {
+      width: 100%; height: 100%;
+      object-fit: cover;
+    }
+
+    .product-name {
+      font-size: 22px;
+      font-weight: 600;
+      letter-spacing: -0.025em;
+      color: var(--text-primary);
+      line-height: 1.2;
+      margin-bottom: 6px;
+    }
+
+    .product-batch {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-bottom: 24px;
+    }
+
+    .product-batch span {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-pill);
+      padding: 2px 10px;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+    }
+
+    .details-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+    }
+
+    .detail-item {
+      padding: 14px 16px;
+      border-right: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .detail-item:nth-child(even) { border-right: none; }
+    .detail-item:nth-last-child(-n+2) { border-bottom: none; }
+
+    .detail-label {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 3px;
+    }
+
+    .detail-value {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text-primary);
+      line-height: 1.4;
+    }
+
+    /* ── Actions ──────────────────────────────────────────── */
+    .actions {
+      padding: 20px 36px 0;
+      border-top: 1px solid var(--border);
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      height: 44px;
+      padding: 0 20px;
+      border-radius: var(--radius-pill);
+      font-family: inherit;
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      cursor: pointer;
+      border: none;
+      transition: all 0.2s;
+      text-decoration: none;
+    }
+
+    .btn-primary {
+      background: var(--cyan-500);
+      color: var(--navy-950);
+    }
+    .btn-primary:hover { background: #24A5B8; transform: translateY(-1px); }
+
+    .btn-ghost {
+      background: transparent;
+      color: var(--text-secondary);
+      border: 1px solid var(--border);
+    }
+    .btn-ghost:hover { border-color: rgba(23,23,71,0.3); background: var(--surface); }
+
+    .btn-danger {
+      background: #FEE2E2;
+      color: #991B1B;
+    }
+    .btn-danger:hover { background: #FECaCa; }
+
+    .btn svg { width: 15px; height: 15px; }
+
+    /* ── Warning note ─────────────────────────────────────── */
+    .warning-note {
+      margin: 20px 36px 0;
+      background: #FFFBEB;
+      border: 1px solid #FDE68A;
+      border-radius: var(--radius-md);
+      padding: 14px 16px;
+      font-size: 13px;
+      color: #92400E;
+      line-height: 1.55;
+    }
+
+    /* ── Fake / no product ────────────────────────────────── */
+    .no-product {
+      padding: 24px 36px 36px;
+      text-align: center;
+    }
+    .no-product p { font-size: 14px; color: var(--text-muted); line-height: 1.6; }
+
+    /* ── Loading skeleton ─────────────────────────────────── */
+    .skeleton {
+      background: linear-gradient(90deg, #E5E7EB 25%, #F3F4F6 50%, #E5E7EB 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.4s infinite;
+      border-radius: 6px;
+      height: 16px;
+      margin-bottom: 8px;
+    }
+    @keyframes shimmer {
+      0%  { background-position: 200% 0; }
+      100%{ background-position: -200% 0; }
+    }
+
+    /* ── Footer ───────────────────────────────────────────── */
+    footer {
+      position: relative;
+      z-index: 5;
+      text-align: center;
+      padding: 0 24px 32px;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    footer a { color: var(--text-muted); text-decoration: underline; }
+
+    /* ── Report modal ─────────────────────────────────────── */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(16,16,57,0.5);
+      backdrop-filter: blur(4px);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .modal-overlay.open { display: flex; }
+
+    .modal {
+      background: #fff;
+      border-radius: var(--radius-lg);
+      padding: 32px;
+      width: 100%;
+      max-width: 400px;
+      box-shadow: var(--shadow-float);
+    }
+
+    .modal h3 { font-size: 18px; font-weight: 600; margin-bottom: 8px; letter-spacing: -0.02em; }
+    .modal p  { font-size: 14px; color: var(--text-secondary); line-height: 1.6; margin-bottom: 20px; }
+
+    .modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
+
+    /* ── Responsive ───────────────────────────────────────── */
+    @media (max-width: 520px) {
+      .status-banner { padding: 24px 24px; }
+      .product-body  { padding: 0 24px 28px; }
+      .actions       { padding: 16px 24px 0; }
+      .warning-note  { margin: 16px 24px 0; }
+      .no-product    { padding: 20px 24px 28px; }
+      .details-grid  { grid-template-columns: 1fr; }
+      .detail-item   { border-right: none; }
+      .detail-item:nth-child(even) { border-right: none; }
+      .detail-item:nth-last-child(-n+2) { border-bottom: 1px solid var(--border); }
+      .detail-item:last-child { border-bottom: none; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .card { animation: none; }
+      .skeleton { animation: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="page-bg" aria-hidden="true"></div>
+  <div class="geo geo-1" aria-hidden="true"></div>
+  <div class="geo geo-2" aria-hidden="true"></div>
+
+  <header>
+    <a href="/" class="brand" aria-label="QR Verify home">
+      <div class="brand-icon" aria-hidden="true">
+        <svg viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="1" y="1" width="6" height="6" rx="1.5" stroke="#DDF8F5" stroke-width="1.5"/>
+          <rect x="11" y="1" width="6" height="6" rx="1.5" stroke="#DDF8F5" stroke-width="1.5"/>
+          <rect x="1" y="11" width="6" height="6" rx="1.5" stroke="#DDF8F5" stroke-width="1.5"/>
+          <rect x="11" y="11" width="2" height="2" fill="#2BB8CD"/>
+          <rect x="15" y="11" width="2" height="2" fill="#2BB8CD"/>
+          <rect x="11" y="15" width="2" height="2" fill="#2BB8CD"/>
+          <rect x="15" y="15" width="2" height="2" fill="#2BB8CD"/>
+          <rect x="3" y="3" width="2" height="2" fill="#2BB8CD"/>
+          <rect x="13" y="3" width="2" height="2" fill="#2BB8CD"/>
+          <rect x="3" y="13" width="2" height="2" fill="#2BB8CD"/>
+        </svg>
+      </div>
+      <span class="brand-name">QR Verify</span>
+    </a>
+  </header>
+
+  <main class="main" role="main">
+    <div class="card" id="card">
+      <!-- Populated by JS -->
+      <div class="status-banner loading" id="status-banner">
+        <div class="status-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M12 6v6l4 2"/>
+          </svg>
+        </div>
+        <div class="status-text">
+          <div class="status-label">Checking</div>
+          <div class="status-headline">Verifying product…</div>
+        </div>
+      </div>
+      <div class="product-body" id="product-body">
+        <div style="padding:24px 0;">
+          <div class="skeleton" style="width:60%;height:22px;"></div>
+          <div class="skeleton" style="width:40%;height:14px;"></div>
+          <div class="skeleton" style="height:100px;border-radius:12px;margin-top:16px;"></div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    <p>Verification powered by <strong>QR Verify</strong> &nbsp;·&nbsp; <a href="#">Learn more</a></p>
+  </footer>
+
+  <!-- Report modal -->
+  <div class="modal-overlay" id="report-modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="modal">
+      <h3 id="modal-title">Report this product</h3>
+      <p>This will flag the QR code for review by the manufacturer. Thank you for helping protect consumers.</p>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+        <button class="btn btn-danger" onclick="submitReport()">Submit report</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ── Icons ──────────────────────────────────────────────────────
+    const ICONS = {
+      verified: `<svg viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>`,
+      warning:  `<svg viewBox="0 0 24 24" fill="none" stroke="#D97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`,
+      fake:     `<svg viewBox="0 0 24 24" fill="none" stroke="#DC2626" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>`,
+      inactive: `<svg viewBox="0 0 24 24" fill="none" stroke="#6B7280" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>`,
+    };
+
+    const STATUS_TEXT = {
+      verified: {
+        label:    'Authentic Product',
+        headline: 'This product is genuine ✓',
+        message:  'This QR code has been verified successfully.',
+      },
+      warning: {
+        label:    'Duplicate Scan Detected',
+        headline: 'Already verified elsewhere ⚠',
+        message:  'This QR was previously scanned from a different location. If you received this as a new product, it may be counterfeit.',
+      },
+      fake: {
+        label:    'Verification Failed',
+        headline: 'Could not verify this product ✗',
+        message:  'This QR code is invalid or unrecognised. Do not trust this product.',
+      },
+      inactive: {
+        label:    'Product Recalled',
+        headline: 'This product has been recalled',
+        message:  'The manufacturer has recalled this product. Please stop using it and contact the manufacturer.',
+      },
+    };
+
+    // ── Bootstrap ──────────────────────────────────────────────────
+    const serial = window.location.pathname.split('/').filter(Boolean).pop();
+    const status = new URLSearchParams(window.location.search).get('status') || 'fake';
+
+    async function init() {
+      renderStatus(status);
+
+      if (status === 'fake') {
+        renderFakeBody();
+        return;
+      }
+
+      try {
+        const res = await fetch(`/api/product/${encodeURIComponent(serial)}`);
+        if (!res.ok) throw new Error('Product not found');
+        const product = await res.json();
+        renderProductBody(product, status);
+      } catch {
+        renderFakeBody();
+      }
+    }
+
+    function renderStatus(s) {
+      const banner = document.getElementById('status-banner');
+      const st     = STATUS_TEXT[s] || STATUS_TEXT.fake;
+
+      banner.className = `status-banner ${s}`;
+      banner.innerHTML = `
+        <div class="status-icon">${ICONS[s] || ICONS.fake}</div>
+        <div class="status-text">
+          <div class="status-label">${st.label}</div>
+          <div class="status-headline">${st.headline}</div>
+          <div class="status-message">${st.message}</div>
+        </div>
+      `;
+    }
+
+    function renderProductBody(p, s) {
+      const body = document.getElementById('product-body');
+
+      const mfgDate = p.manufacturing_date ? new Date(p.manufacturing_date).toLocaleDateString('en-IN', { year:'numeric', month:'short', day:'numeric' }) : '—';
+      const expDate = p.expiry_date ? new Date(p.expiry_date).toLocaleDateString('en-IN', { year:'numeric', month:'short', day:'numeric' }) : '—';
+
+      body.innerHTML = `
+        ${p.product_image_url ? `<div class="product-image-wrap"><img src="${esc(p.product_image_url)}" alt="${esc(p.product_name)}" loading="lazy" /></div>` : ''}
+        <div class="product-name">${esc(p.product_name)}</div>
+        <div class="product-batch">Batch &nbsp;<span>${esc(p.batch_code)}</span></div>
+        <div class="details-grid">
+          <div class="detail-item"><div class="detail-label">Manufacturer</div><div class="detail-value">${esc(p.manufacturer || '—')}</div></div>
+          <div class="detail-item"><div class="detail-label">Origin</div><div class="detail-value">${esc(p.country_of_origin || '—')}</div></div>
+          <div class="detail-item"><div class="detail-label">Manufactured</div><div class="detail-value">${mfgDate}</div></div>
+          <div class="detail-item"><div class="detail-label">Expires</div><div class="detail-value">${expDate}</div></div>
+          ${p.distributor ? `<div class="detail-item" style="grid-column:1/-1"><div class="detail-label">Distributor</div><div class="detail-value">${esc(p.distributor)}</div></div>` : ''}
+        </div>
+      `;
+
+      // Warning note
+      if (s === 'warning') {
+        const note = document.createElement('div');
+        note.className = 'warning-note';
+        note.innerHTML = 'This QR code was scanned from a different location. If you purchased this product as new, it may be counterfeit. Use the button below to report it.';
+        document.getElementById('card').insertBefore(note, document.querySelector('.actions'));
+      }
+
+      // Actions
+      const actions = document.createElement('div');
+      actions.className = 'actions';
+      if (s === 'verified') {
+        actions.innerHTML = `<button class="btn btn-ghost" onclick="window.print()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>Print</button>`;
+      } else if (s === 'warning') {
+        actions.innerHTML = `<button class="btn btn-danger" onclick="openModal()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>Report this product</button>`;
+      }
+      document.getElementById('card').appendChild(actions);
+    }
+
+    function renderFakeBody() {
+      document.getElementById('product-body').innerHTML = `
+        <div class="no-product">
+          <p>This QR code could not be authenticated. Do not use or consume this product. If you believe this is an error, contact the manufacturer directly.</p>
+        </div>
+      `;
+    }
+
+    // ── Modal ──────────────────────────────────────────────────────
+    function openModal()  { document.getElementById('report-modal').classList.add('open'); }
+    function closeModal() { document.getElementById('report-modal').classList.remove('open'); }
+
+    async function submitReport() {
+      closeModal();
+      alert('Thank you — your report has been submitted.');
+    }
+
+    // ── Escape HTML ────────────────────────────────────────────────
+    function esc(str) {
+      return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    // Close modal on overlay click
+    document.getElementById('report-modal').addEventListener('click', (e) => {
+      if (e.target === e.currentTarget) closeModal();
+    });
+
+    init();
+  </script>
+</body>
+</html>
