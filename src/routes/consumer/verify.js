@@ -55,32 +55,28 @@ module.exports = async function verifyRoutes(fastify) {
 
     // Only run fraud detection when we have a real routable IP
     if (hasRealIP && history.length > 0) {
-      const prevScans    = history.filter(s => s.ip && s.ip !== ip);
-      const latestSame   = history.find(s => s.ip === ip);
-      const minsElapsed  = latestSame
-        ? (Date.now() - new Date(latestSame.scanned_at)) / 60000
-        : Infinity;
+      const scannedByOthers = history.filter(s => s.ip && s.ip !== ip);
 
-      // Someone with a DIFFERENT IP has scanned this serial before
-      if (prevScans.length > 0 && minsElapsed > 60) {
+      // Core rule: if ANY different IP has ever scanned this serial → warning + alert
+      if (scannedByOthers.length > 0) {
         result     = 'warning';
-        flagReason = 'ALREADY_SCANNED_ELSEWHERE';
-        const prev = prevScans[0];
+        flagReason = 'ALREADY_SCANNED_BY_DIFFERENT_IP';
+        const first = scannedByOthers[scannedByOthers.length - 1]; // original scan
         alerts.push({
           type: 'DUPLICATE_SCAN', severity: 'high',
           details: {
             currentIP: ip, currentCountry: country, currentCity: city,
-            prevIP: prev.ip, prevCountry: prev.country, prevCity: prev.city,
-            prevAt: prev.scanned_at,
+            originalIP: first.ip, originalCountry: first.country, originalCity: first.city,
+            originalAt: first.scanned_at,
+            totalOtherScans: scannedByOthers.length,
           },
         });
       }
 
-      // Mass clone: 5+ unique IPs scanned this serial
+      // Mass clone escalation: 5+ unique IPs → critical
       const uniqueIPs = new Set(history.map(s => s.ip).filter(Boolean));
       uniqueIPs.add(ip);
       if (uniqueIPs.size >= 5) {
-        result     = 'warning';
         flagReason = 'MASS_CLONE';
         alerts.push({
           type: 'MASS_CLONE', severity: 'critical',
@@ -88,21 +84,25 @@ module.exports = async function verifyRoutes(fastify) {
         });
       }
 
-      // Geo-anomaly: same serial scanned from 2+ countries today
+      // Geo-anomaly: scanned from 2+ countries on same day
       if (country) {
         const today = new Date();
-        const todayScans = history.filter(s => {
-          const d = new Date(s.scanned_at);
-          return d.getFullYear() === today.getFullYear()
-            && d.getMonth() === today.getMonth()
-            && d.getDate() === today.getDate();
-        });
-        const countries = new Set(todayScans.map(s => s.country).filter(Boolean));
-        countries.add(country);
-        if (countries.size >= 2) {
+        const todayCountries = new Set(
+          history
+            .filter(s => {
+              const d = new Date(s.scanned_at);
+              return d.getFullYear() === today.getFullYear()
+                && d.getMonth() === today.getMonth()
+                && d.getDate() === today.getDate();
+            })
+            .map(s => s.country)
+            .filter(Boolean)
+        );
+        todayCountries.add(country);
+        if (todayCountries.size >= 2) {
           alerts.push({
             type: 'GEO_ANOMALY', severity: 'critical',
-            details: { countries: [...countries], serial },
+            details: { countries: [...todayCountries], serial },
           });
         }
       }
