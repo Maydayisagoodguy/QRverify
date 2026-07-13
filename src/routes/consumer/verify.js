@@ -57,11 +57,23 @@ module.exports = async function verifyRoutes(fastify) {
     if (hasRealIP && history.length > 0) {
       const scannedByOthers = history.filter(s => s.ip && s.ip !== ip);
 
-      // Core rule: if ANY different IP has ever scanned this serial → warning + alert
+      const sameIPScans = history.filter(s => s.ip === ip);
+
+      // Same IP scanned more than 2 times → suspicious (reselling/sharing)
+      if (sameIPScans.length >= 2) {
+        result     = 'warning';
+        flagReason = 'SCAN_LIMIT_EXCEEDED';
+        alerts.push({
+          type: 'SCAN_LIMIT_EXCEEDED', severity: 'medium',
+          details: { ip, country, city, scanCount: sameIPScans.length + 1, serial },
+        });
+      }
+
+      // Different IP has scanned this serial → counterfeit risk
       if (scannedByOthers.length > 0) {
         result     = 'warning';
         flagReason = 'ALREADY_SCANNED_BY_DIFFERENT_IP';
-        const first = scannedByOthers[scannedByOthers.length - 1]; // original scan
+        const first = scannedByOthers[scannedByOthers.length - 1];
         alerts.push({
           type: 'DUPLICATE_SCAN', severity: 'high',
           details: {
