@@ -1,10 +1,33 @@
 'use strict';
 
-const db          = require('../../db');
+const db             = require('../../db');
 const { verifyHMAC } = require('../../services/qrgen');
 const { lookupIP }   = require('../../services/geoip');
 const { sendAlertEmail } = require('../../services/mailer');
-const { verifyRateLimit, strictRateLimit } = require('../../middleware/rateLimit');
+const { verifyRateLimit } = require('../../middleware/rateLimit');
+
+// Returns true only for real public routable IPs
+function isPublicIP(ip) {
+  if (!ip) return false;
+  const clean = ip.startsWith('::ffff:') ? ip.slice(7) : ip;
+  if (clean === '127.0.0.1' || clean === '::1') return false;
+  const parts = clean.split('.').map(Number);
+  if (parts.length !== 4) return false;
+  if (parts[0] === 10) return false;
+  if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) return false;
+  if (parts[0] === 192 && parts[1] === 168) return false;
+  if (parts[0] === 169 && parts[1] === 254) return false;
+  return true;
+}
+
+// Fire-and-forget scan log — never blocks or crashes the verify flow
+async function safeLogScan(data, logger) {
+  try {
+    await db.logScan(data);
+  } catch (err) {
+    logger.error({ err }, 'logScan failed — scan not recorded');
+  }
+}
 
 module.exports = async function verifyRoutes(fastify) {
 
@@ -13,53 +36,57 @@ module.exports = async function verifyRoutes(fastify) {
   }, async (request, reply) => {
     const { serial } = request.params;
     const { h: hmac } = request.query;
-    const ip          = request.ip;
-    const userAgent   = request.headers['user-agent'] || '';
+    const ip        = request.ip;
+    const userAgent = request.headers['user-agent'] || '';
+
+    // Geo-lookup first — so ALL scan types (fake, inactive, verified) get location data
+    const { country, city, lat, lng } = lookupIP(ip);
+    const hasRealIP = isPublicIP(ip);
 
     // 1. Validate HMAC
     if (!hmac || !verifyHMAC(serial, hmac)) {
-      await db.logScan({ serial, ip, userAgent, result: 'fake', flagReason: 'INVALID_HMAC' });
-      return reply.redirect(`/result/${encodeURIComponent(serial)}?status=fake&reason=invalid_signature`);
+      await safeLogScan({ serial, ip, country, city, lat, lng, userAgent, result: 'fake', flagReason: 'INVALID_HMAC' }, request.log);
+      return reply.redirect(`/result/${encodeURIComponent(serial)}?status=fake`);
     }
 
-    // 2. Check serial exists
+    // 2. Look up product
     let product;
     try {
       product = await db.getProduct(serial);
     } catch (err) {
       request.log.error({ err }, 'DB error on product lookup');
-      return reply.code(503).send({ error: 'Service unavailable', code: 'DB_ERROR' });
+      return reply.code(503).send({ error: 'Service temporarily unavailable', code: 'DB_ERROR' });
     }
 
     if (!product) {
-      await db.logScan({ serial, ip, userAgent, result: 'fake', flagReason: 'SERIAL_NOT_FOUND' });
-      return reply.redirect(`/result/${encodeURIComponent(serial)}?status=fake&reason=unknown_serial`);
+      await safeLogScan({ serial, ip, country, city, lat, lng, userAgent, result: 'fake', flagReason: 'SERIAL_NOT_FOUND' }, request.log);
+      return reply.redirect(`/result/${encodeURIComponent(serial)}?status=fake`);
     }
 
     // 3. Check if recalled
     if (!product.is_active) {
-      await db.logScan({ serial, ip, userAgent, result: 'inactive', flagReason: 'PRODUCT_RECALLED' });
+      await safeLogScan({ serial, ip, country, city, lat, lng, userAgent, result: 'inactive', flagReason: 'PRODUCT_RECALLED' }, request.log);
       return reply.redirect(`/result/${encodeURIComponent(serial)}?status=inactive`);
     }
 
-    // 4. Geo-lookup — real IP only available with trustProxy:true on Render
-    const { country, city, lat, lng } = lookupIP(ip);
-    const hasRealIP = Boolean(ip && ip !== '127.0.0.1' && ip !== '::1' && !ip.startsWith('::ffff:127.'));
-
-    // 5. Fetch scan history
-    const history = await db.getScanHistory(serial, 50);
+    // 4. Fetch scan history
+    let history = [];
+    try {
+      history = await db.getScanHistory(serial, 50);
+    } catch (err) {
+      request.log.error({ err }, 'getScanHistory failed — skipping fraud check');
+    }
 
     let result     = 'verified';
     let flagReason = null;
     const alerts   = [];
 
-    // Only run fraud detection when we have a real routable IP
+    // 5. Fraud detection — only on real public IPs
     if (hasRealIP && history.length > 0) {
-      const scannedByOthers = history.filter(s => s.ip && s.ip !== ip);
+      const sameIPScans     = history.filter(s => s.ip === ip);
+      const differentIPScans = history.filter(s => s.ip && s.ip !== ip);
 
-      const sameIPScans = history.filter(s => s.ip === ip);
-
-      // Same IP scanned more than 2 times → suspicious (reselling/sharing)
+      // Rule A: same IP can scan max 2 times — 3rd scan onwards = warning
       if (sameIPScans.length >= 2) {
         result     = 'warning';
         flagReason = 'SCAN_LIMIT_EXCEEDED';
@@ -69,23 +96,23 @@ module.exports = async function verifyRoutes(fastify) {
         });
       }
 
-      // Different IP has scanned this serial → counterfeit risk
-      if (scannedByOthers.length > 0) {
+      // Rule B: any different IP has ever scanned this serial = counterfeit risk
+      if (differentIPScans.length > 0) {
         result     = 'warning';
-        flagReason = 'ALREADY_SCANNED_BY_DIFFERENT_IP';
-        const first = scannedByOthers[scannedByOthers.length - 1];
+        flagReason = flagReason || 'ALREADY_SCANNED_BY_DIFFERENT_IP';
+        const original = differentIPScans[differentIPScans.length - 1]; // oldest different-IP scan
         alerts.push({
           type: 'DUPLICATE_SCAN', severity: 'high',
           details: {
             currentIP: ip, currentCountry: country, currentCity: city,
-            originalIP: first.ip, originalCountry: first.country, originalCity: first.city,
-            originalAt: first.scanned_at,
-            totalOtherScans: scannedByOthers.length,
+            originalIP: original.ip, originalCountry: original.country,
+            originalCity: original.city, originalAt: original.scanned_at,
+            totalOtherIPs: new Set(differentIPScans.map(s => s.ip)).size,
           },
         });
       }
 
-      // Mass clone escalation: 5+ unique IPs → critical
+      // Rule C: 5+ unique IPs = mass clone operation
       const uniqueIPs = new Set(history.map(s => s.ip).filter(Boolean));
       uniqueIPs.add(ip);
       if (uniqueIPs.size >= 5) {
@@ -96,7 +123,7 @@ module.exports = async function verifyRoutes(fastify) {
         });
       }
 
-      // Geo-anomaly: scanned from 2+ countries on same day
+      // Rule D: same serial scanned from 2+ countries today = geo anomaly
       if (country) {
         const today = new Date();
         const todayCountries = new Set(
@@ -120,27 +147,28 @@ module.exports = async function verifyRoutes(fastify) {
       }
     }
 
-    // 6. Bot detection: same IP scanning 20+ different serials in 1 min
-    // (handled by rate limiter — already done above)
+    // 6. Log this scan (non-blocking)
+    await safeLogScan({ serial, ip, country, city, lat, lng, userAgent, result, flagReason }, request.log);
 
-    // 7. Log scan
-    await db.logScan({ serial, ip, country, city, lat, lng, userAgent, result, flagReason });
-
-    // 8. Create alerts + send email for critical
+    // 7. Persist alerts + email on critical
     for (const a of alerts) {
-      await db.createAlert({
-        serial,
-        batchCode:  product.batch_code,
-        alertType:  a.type,
-        severity:   a.severity,
-        details:    a.details,
-      });
-      if (a.severity === 'critical') {
-        sendAlertEmail(a.type, a.severity, a.details).catch(() => {});
+      try {
+        await db.createAlert({
+          serial,
+          batchCode: product.batch_code,
+          alertType: a.type,
+          severity:  a.severity,
+          details:   a.details,
+        });
+        if (a.severity === 'critical') {
+          sendAlertEmail(a.type, a.severity, a.details).catch(() => {});
+        }
+      } catch (err) {
+        request.log.error({ err }, `createAlert failed for ${a.type}`);
       }
     }
 
-    // 9. Redirect to result page
+    // 8. Redirect to result
     return reply.redirect(`/result/${encodeURIComponent(serial)}?status=${result}`);
   });
 };
