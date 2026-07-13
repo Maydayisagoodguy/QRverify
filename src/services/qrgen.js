@@ -7,10 +7,7 @@ const { v4: uuidv4 } = require('uuid');
 const archiver = require('archiver');
 const config  = require('../config');
 
-const REQUIRED_COLS = [
-  'product_name', 'batch_code', 'serial_prefix', 'quantity',
-  'manufacturing_date', 'expiry_date', 'manufacturer', 'country_of_origin',
-];
+const REQUIRED_COLS = ['product_name', 'batch_code', 'serial_prefix', 'quantity'];
 
 function generateSerial(prefix) {
   return `${prefix}-${uuidv4().replace(/-/g, '').slice(0, 24)}`;

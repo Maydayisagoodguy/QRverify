@@ -217,15 +217,46 @@
 
     .product-image-wrap {
       margin: 0 -36px 28px;
-      height: 200px;
+      height: 220px;
       overflow: hidden;
-      background: var(--surface);
+      background: linear-gradient(135deg, #E1F2B8 0%, #DDF3D6 40%, #D8F3E8 100%);
       position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
 
     .product-image-wrap img {
       width: 100%; height: 100%;
       object-fit: cover;
+    }
+
+    .product-image-placeholder {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .product-image-placeholder .product-initial {
+      width: 64px; height: 64px;
+      background: rgba(255,255,255,0.6);
+      border-radius: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 26px;
+      font-weight: 600;
+      color: var(--navy-900);
+      letter-spacing: -0.02em;
+    }
+
+    .product-image-placeholder span {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
     }
 
     .product-name {
@@ -570,7 +601,15 @@
       const expDate = p.expiry_date ? new Date(p.expiry_date).toLocaleDateString('en-IN', { year:'numeric', month:'short', day:'numeric' }) : '—';
 
       body.innerHTML = `
-        ${p.product_image_url ? `<div class="product-image-wrap"><img src="${esc(p.product_image_url)}" alt="${esc(p.product_name)}" loading="lazy" /></div>` : ''}
+        <div class="product-image-wrap">
+          ${p.product_image_url
+            ? `<img src="${esc(p.product_image_url)}" alt="${esc(p.product_name)}" loading="lazy" />`
+            : `<div class="product-image-placeholder">
+                <div class="product-initial">${esc(p.product_name.charAt(0).toUpperCase())}</div>
+                <span>Product Image</span>
+               </div>`
+          }
+        </div>
         <div class="product-name">${esc(p.product_name)}</div>
         <div class="product-batch">Batch &nbsp;<span>${esc(p.batch_code)}</span></div>
         <div class="details-grid">
