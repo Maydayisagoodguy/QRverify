@@ -42,38 +42,44 @@ module.exports = async function verifyRoutes(fastify) {
       return reply.redirect(`/result/${encodeURIComponent(serial)}?status=inactive`);
     }
 
-    // 4. Geo-lookup
+    // 4. Geo-lookup — real IP only available with trustProxy:true on Render
     const { country, city, lat, lng } = lookupIP(ip);
+    const hasRealIP = Boolean(ip && ip !== '127.0.0.1' && ip !== '::1' && !ip.startsWith('::ffff:127.'));
 
     // 5. Fetch scan history
-    const history = await db.getScanHistory(serial, 20);
+    const history = await db.getScanHistory(serial, 50);
 
     let result     = 'verified';
     let flagReason = null;
     const alerts   = [];
 
-    if (history.length > 0) {
-      const first        = history[history.length - 1]; // oldest
-      const sameIP       = first.ip === ip;
-      const minsElapsed  = (Date.now() - new Date(first.scanned_at)) / 60000;
+    // Only run fraud detection when we have a real routable IP
+    if (hasRealIP && history.length > 0) {
+      const prevScans    = history.filter(s => s.ip && s.ip !== ip);
+      const latestSame   = history.find(s => s.ip === ip);
+      const minsElapsed  = latestSame
+        ? (Date.now() - new Date(latestSame.scanned_at)) / 60000
+        : Infinity;
 
-      // Same person rescanning within 1 hour — OK
-      if (!(sameIP && minsElapsed < 60)) {
-        const sameLocation = first.country === country && first.city === city;
-        if (!sameLocation || !sameIP) {
-          result     = 'warning';
-          flagReason = 'ALREADY_SCANNED_ELSEWHERE';
-          alerts.push({
-            type: 'DUPLICATE_SCAN', severity: 'high',
-            details: { ip, country, city, firstScan: { ip: first.ip, country: first.country, city: first.city, at: first.scanned_at } },
-          });
-        }
+      // Someone with a DIFFERENT IP has scanned this serial before
+      if (prevScans.length > 0 && minsElapsed > 60) {
+        result     = 'warning';
+        flagReason = 'ALREADY_SCANNED_ELSEWHERE';
+        const prev = prevScans[0];
+        alerts.push({
+          type: 'DUPLICATE_SCAN', severity: 'high',
+          details: {
+            currentIP: ip, currentCountry: country, currentCity: city,
+            prevIP: prev.ip, prevCountry: prev.country, prevCity: prev.city,
+            prevAt: prev.scanned_at,
+          },
+        });
       }
 
-      // Mass clone: 3+ unique IPs
-      const uniqueIPs = new Set(history.map(s => s.ip));
-      if (!uniqueIPs.has(ip)) uniqueIPs.add(ip);
-      if (uniqueIPs.size >= 3) {
+      // Mass clone: 5+ unique IPs scanned this serial
+      const uniqueIPs = new Set(history.map(s => s.ip).filter(Boolean));
+      uniqueIPs.add(ip);
+      if (uniqueIPs.size >= 5) {
         result     = 'warning';
         flagReason = 'MASS_CLONE';
         alerts.push({
@@ -82,19 +88,23 @@ module.exports = async function verifyRoutes(fastify) {
         });
       }
 
-      // Same serial, two different countries in one day
-      const todayScans  = history.filter(s => {
-        const d = new Date(s.scanned_at);
-        const n = new Date();
-        return d.getFullYear() === n.getFullYear() && d.getMonth() === n.getMonth() && d.getDate() === n.getDate();
-      });
-      const countries = new Set(todayScans.map(s => s.country).filter(Boolean));
-      if (country) countries.add(country);
-      if (countries.size >= 2) {
-        alerts.push({
-          type: 'GEO_ANOMALY', severity: 'critical',
-          details: { countries: [...countries], serial },
+      // Geo-anomaly: same serial scanned from 2+ countries today
+      if (country) {
+        const today = new Date();
+        const todayScans = history.filter(s => {
+          const d = new Date(s.scanned_at);
+          return d.getFullYear() === today.getFullYear()
+            && d.getMonth() === today.getMonth()
+            && d.getDate() === today.getDate();
         });
+        const countries = new Set(todayScans.map(s => s.country).filter(Boolean));
+        countries.add(country);
+        if (countries.size >= 2) {
+          alerts.push({
+            type: 'GEO_ANOMALY', severity: 'critical',
+            details: { countries: [...countries], serial },
+          });
+        }
       }
     }
 

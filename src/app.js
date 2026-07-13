@@ -9,7 +9,7 @@ if (!globalThis.WebSocket) {
 
 const path = require('path');
 const fs   = require('fs');
-const fastify = require('fastify')({ logger: true });
+const fastify = require('fastify')({ logger: true, trustProxy: true });
 const config  = require('./config');
 
 // ── Inject admin key into HTML at serve time (no manual login needed) ──
