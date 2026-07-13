@@ -71,21 +71,33 @@ async function getScanHistory(serial, limit = 10) {
 async function getScanLogs({ result, batchCode, from, to, limit = 100, offset = 0 }) {
   let q = db
     .from('scan_logs')
-    .select(`
-      id, serial, scanned_at, ip, country, city, result, flag_reason, user_agent,
-      products!inner(product_name, batch_code)
-    `)
+    .select('id, serial, scanned_at, ip, country, city, result, flag_reason, user_agent')
     .order('scanned_at', { ascending: false })
     .range(offset, offset + limit - 1);
 
-  if (result)    q = q.eq('result', result);
-  if (batchCode) q = q.eq('products.batch_code', batchCode);
-  if (from)      q = q.gte('scanned_at', from);
-  if (to)        q = q.lte('scanned_at', to);
+  if (result) q = q.eq('result', result);
+  if (from)   q = q.gte('scanned_at', from);
+  if (to)     q = q.lte('scanned_at', to);
 
   const { data, error } = await q;
   if (error) throw error;
-  return data || [];
+
+  const rows = data || [];
+  if (!rows.length) return rows;
+
+  // Enrich with product info (no FK needed)
+  const serials = [...new Set(rows.map(r => r.serial))];
+  const { data: prods } = await db
+    .from('products')
+    .select('serial, product_name, batch_code')
+    .in('serial', serials);
+
+  const prodMap = Object.fromEntries((prods || []).map(p => [p.serial, p]));
+  const enriched = rows.map(r => ({ ...r, products: prodMap[r.serial] || null }));
+
+  return batchCode
+    ? enriched.filter(r => r.products?.batch_code === batchCode)
+    : enriched;
 }
 
 // ── Alerts ────────────────────────────────────────────────────────

@@ -80,7 +80,6 @@ async function processExcel(fileBuffer) {
         product_image_url:  row.product_image_url || null,
         distributor:        row.distributor || null,
         region_expected:    row.region || null,
-        qr_url:             buildURL(serial, hmac),
       });
     }
   }
