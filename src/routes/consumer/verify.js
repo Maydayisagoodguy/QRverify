@@ -3,6 +3,7 @@
 const db             = require('../../db');
 const { verifyHMAC } = require('../../services/qrgen');
 const { lookupIP }   = require('../../services/geoip');
+const { checkIP }    = require('../../services/vpn');
 const { sendAlertEmail } = require('../../services/mailer');
 const { verifyRateLimit } = require('../../middleware/rateLimit');
 
@@ -52,16 +53,19 @@ module.exports = async function verifyRoutes(fastify) {
     const { country, city, lat, lng } = lookupIP(ip);
     const hasRealIP = isPublicIP(ip);
 
+    // Start VPN check early — runs in parallel with DB lookup (fails open on error)
+    const vpnPromise = hasRealIP ? checkIP(ip) : Promise.resolve(null);
+
     // 1. Validate HMAC
     if (!hmac || !verifyHMAC(serial, hmac)) {
       await safeLogScan({ serial, ip, country, city, lat, lng, userAgent, result: 'fake', flagReason: 'INVALID_HMAC' }, request.log);
       return reply.redirect(`/result/${encodeURIComponent(serial)}?status=fake`);
     }
 
-    // 2. Look up product
-    let product;
+    // 2. Look up product + await VPN check in parallel
+    let product, vpnInfo;
     try {
-      product = await db.getProduct(serial);
+      [product, vpnInfo] = await Promise.all([db.getProduct(serial), vpnPromise]);
     } catch (err) {
       request.log.error({ err }, 'DB error on product lookup');
       return reply.code(503).send({ error: 'Service temporarily unavailable', code: 'DB_ERROR' });
@@ -138,6 +142,14 @@ module.exports = async function verifyRoutes(fastify) {
         alerts.push({
           type: 'HIGH_SCAN_COUNT', severity: 'high',
           details: { totalScans, serial, batchCode: product.batch_code, ip, country },
+        });
+      }
+
+      // Rule F: VPN / datacenter IP — alert admin without affecting consumer result
+      if (vpnInfo && vpnInfo.isDatacenter) {
+        alerts.push({
+          type: 'SUSPECTED_PROXY', severity: 'high',
+          details: { ip, isp: vpnInfo.isp, org: vpnInfo.org, country, serial, batchCode: product.batch_code },
         });
       }
 

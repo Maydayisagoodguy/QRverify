@@ -251,7 +251,7 @@
     /* ── Stat cards ───────────────────────────────────────── */
     .stats-grid {
       display: grid;
-      grid-template-columns: repeat(5, 1fr);
+      grid-template-columns: repeat(6, 1fr);
       gap: 16px;
       margin-bottom: 28px;
     }
@@ -356,6 +356,45 @@
     .legend-dot {
       width: 8px; height: 8px; border-radius: 50%;
     }
+
+    /* ── Map filter bar ───────────────────────────────── */
+    .map-filter-bar {
+      display: flex;
+      gap: 6px;
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--border);
+      background: var(--gray-fafa);
+      flex-wrap: wrap;
+    }
+
+    .map-filter-btn {
+      height: 28px;
+      padding: 0 14px;
+      border-radius: var(--radius-pill);
+      font-family: inherit;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      border: 1px solid var(--border);
+      background: var(--white);
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .map-filter-btn:hover { border-color: var(--border-strong); background: var(--gray-100); }
+    .map-filter-btn.active { background: var(--red); color: #fff; border-color: var(--red); }
+
+    /* ── Map fullscreen ───────────────────────────────── */
+    .map-card.map-fullscreen {
+      position: fixed;
+      inset: 0;
+      z-index: 50;
+      border-radius: 0;
+      display: flex;
+      flex-direction: column;
+    }
+    .map-card.map-fullscreen #scan-map { flex: 1; height: auto !important; }
+    .map-card.map-fullscreen .map-legend { flex-shrink: 0; }
 
     /* ── Alert feed ───────────────────────────────────────── */
     .alert-feed {
@@ -757,13 +796,30 @@
             <div class="stat-value orange" id="stat-alerts">—</div>
             <div class="stat-sub">Unresolved</div>
           </div>
+          <div class="stat-card">
+            <div class="stat-label">Fraud Rate</div>
+            <div class="stat-value" id="stat-fraud-rate">—</div>
+            <div class="stat-sub" id="stat-fraud-sub">Warnings + fake / total</div>
+          </div>
         </div>
 
         <div class="two-col">
           <div class="map-card">
             <div class="card-header">
               <span class="card-title">Scan Map</span>
-              <span class="card-meta">Last 500 scans</span>
+              <div style="display:flex;align-items:center;gap:8px;">
+                <span class="card-meta" id="map-count-label">Last 500 scans</span>
+                <button class="btn btn-ghost btn-sm" id="map-fs-btn" onclick="toggleMapFullscreen()">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 00-2 2v3"/><path d="M21 8V5a2 2 0 00-2-2h-3"/><path d="M3 16v3a2 2 0 002 2h3"/><path d="M16 21h3a2 2 0 002-2v-3"/></svg>
+                  Fullscreen
+                </button>
+              </div>
+            </div>
+            <div class="map-filter-bar">
+              <button class="map-filter-btn active" data-filter="all">All</button>
+              <button class="map-filter-btn" data-filter="verified">Verified</button>
+              <button class="map-filter-btn" data-filter="warning">Warning</button>
+              <button class="map-filter-btn" data-filter="fake">Fake</button>
             </div>
             <div id="scan-map"></div>
             <div class="map-legend">
@@ -941,9 +997,13 @@
   <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
   <script>
     // ── State ──────────────────────────────────────────────────────
-    let adminKey  = '';
-    let mapInstance = null;
-    let activeSection = 'dashboard';
+    let adminKey       = '';
+    let mapInstance    = null;
+    let clusterLayer   = null;
+    let mapData        = [];
+    let currentMapFilter = 'all';
+    let mapFullscreen  = false;
+    let activeSection  = 'dashboard';
     const loadedSections = new Set();
 
     // ── Auth ───────────────────────────────────────────────────────
@@ -1032,6 +1092,15 @@
       btn.addEventListener('click', () => switchSection(btn.dataset.section));
     });
 
+    document.querySelectorAll('.map-filter-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.map-filter-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentMapFilter = btn.dataset.filter;
+        renderMapMarkers(currentMapFilter);
+      });
+    });
+
     // ── API helper ─────────────────────────────────────────────────
     async function api(path) {
       const res = await fetch(path, { headers: { 'x-admin-key': adminKey } });
@@ -1059,6 +1128,19 @@
         document.getElementById('stat-warning').textContent  = fmt(d.warning);
         document.getElementById('stat-fake').textContent     = fmt(d.fake);
         document.getElementById('stat-alerts').textContent   = fmt(d.activeAlerts);
+
+        // Fraud Rate — (warnings + fake) / total
+        const fraudEl  = document.getElementById('stat-fraud-rate');
+        const fraudSub = document.getElementById('stat-fraud-sub');
+        if (d.total > 0) {
+          const rate = ((d.warning + d.fake) / d.total * 100);
+          fraudEl.textContent = rate.toFixed(1) + '%';
+          fraudEl.className   = 'stat-value ' + (rate < 5 ? 'green' : rate < 15 ? 'amber' : 'red');
+          fraudSub.textContent = `${fmt(d.warning + d.fake)} of ${fmt(d.total)} scans`;
+        } else {
+          fraudEl.textContent = '0%';
+          fraudEl.className   = 'stat-value green';
+        }
 
         const badge = document.getElementById('alert-badge');
         if (d.activeAlerts > 0) {
@@ -1121,12 +1203,11 @@
       }
     }
 
-    let clusterLayer = null;
-
     async function loadMap() {
       if (!document.getElementById('scan-map')) return;
       try {
         const data = await api('/admin/analytics/map-data');
+        mapData = data;
 
         if (!mapInstance) {
           mapInstance = L.map('scan-map', {
@@ -1145,58 +1226,95 @@
           }).addTo(mapInstance);
         }
 
-        // Remove old cluster layer
-        if (clusterLayer) { mapInstance.removeLayer(clusterLayer); }
-
-        const colors = { verified: '#22C55E', warning: '#F59E0B', fake: '#EF4444', inactive: '#9CA3AF' };
-
-        clusterLayer = L.markerClusterGroup({
-          maxClusterRadius: 50,
-          spiderfyOnMaxZoom: true,
-          showCoverageOnHover: false,
-          zoomToBoundsOnClick: true,
-          iconCreateFunction(cluster) {
-            const count = cluster.getChildCount();
-            return L.divIcon({
-              html: `<div style="width:36px;height:36px;border-radius:50%;background:rgba(184,31,36,0.85);color:#fff;font-weight:700;font-size:12px;display:flex;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,0.25);">${count > 999 ? '999+' : count}</div>`,
-              className: '',
-              iconSize: [36, 36],
-              iconAnchor: [18, 18],
-            });
-          },
-        });
-
-        const points = data.filter(d => d.lat && d.lng);
-
-        points.forEach(d => {
-          const color = colors[d.result] || '#9CA3AF';
-          const icon = L.divIcon({
-            html: `<div style="width:12px;height:12px;border-radius:50%;background:${color};border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.3);"></div>`,
-            className: '',
-            iconSize: [12, 12],
-            iconAnchor: [6, 6],
-          });
-          const loc = [d.city, d.country].filter(Boolean).join(', ') || 'Unknown';
-          L.marker([d.lat, d.lng], { icon })
-            .bindPopup(
-              `<div style="font-family:Manrope,sans-serif;min-width:140px;">
-                <div style="font-weight:700;font-size:13px;margin-bottom:4px;text-transform:capitalize;">${d.result}</div>
-                <div style="font-size:12px;color:#555;">${loc}</div>
-                <div style="font-size:11px;color:#999;margin-top:4px;">${new Date(d.scanned_at).toLocaleString('en-IN',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}</div>
-              </div>`,
-              { maxWidth: 200 }
-            )
-            .addTo(clusterLayer);
-        });
-
-        mapInstance.addLayer(clusterLayer);
-
-        // Auto-fit to data if we have points
-        if (points.length > 0) {
-          const bounds = L.latLngBounds(points.map(d => [d.lat, d.lng]));
-          mapInstance.fitBounds(bounds, { padding: [40, 40], maxZoom: 8 });
-        }
+        renderMapMarkers(currentMapFilter);
       } catch {}
+    }
+
+    function renderMapMarkers(filter) {
+      if (!mapInstance) return;
+      if (clusterLayer) mapInstance.removeLayer(clusterLayer);
+
+      const colors = { verified: '#22C55E', warning: '#F59E0B', fake: '#EF4444', inactive: '#9CA3AF' };
+
+      clusterLayer = L.markerClusterGroup({
+        maxClusterRadius: 50,
+        spiderfyOnMaxZoom: true,
+        showCoverageOnHover: false,
+        zoomToBoundsOnClick: true,
+        iconCreateFunction(cluster) {
+          const count = cluster.getChildCount();
+          return L.divIcon({
+            html: `<div style="width:36px;height:36px;border-radius:50%;background:rgba(184,31,36,0.85);color:#fff;font-weight:700;font-size:12px;display:flex;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,0.25);">${count > 999 ? '999+' : count}</div>`,
+            className: '',
+            iconSize: [36, 36],
+            iconAnchor: [18, 18],
+          });
+        },
+      });
+
+      const points = mapData.filter(d => {
+        if (!d.lat || !d.lng) return false;
+        return filter === 'all' || d.result === filter;
+      });
+
+      // Update count label
+      const label = document.getElementById('map-count-label');
+      if (label) label.textContent = filter === 'all' ? `${points.length} scans` : `${points.length} ${filter}`;
+
+      points.forEach(d => {
+        const color = colors[d.result] || '#9CA3AF';
+        const icon = L.divIcon({
+          html: `<div style="width:12px;height:12px;border-radius:50%;background:${color};border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.3);"></div>`,
+          className: '',
+          iconSize: [12, 12],
+          iconAnchor: [6, 6],
+        });
+        const loc  = [d.city, d.country].filter(Boolean).join(', ') || 'Unknown location';
+        const name = esc(d.product_name || 'Unknown product');
+        const ser  = d.serial ? d.serial.slice(0, 14) + '…' : '—';
+        const bat  = esc(d.batch_code || '—');
+        const time = new Date(d.scanned_at).toLocaleString('en-IN', { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
+        const dot  = `<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${color};margin-right:5px;vertical-align:middle;"></span>`;
+
+        L.marker([d.lat, d.lng], { icon })
+          .bindPopup(
+            `<div style="font-family:Manrope,sans-serif;min-width:190px;line-height:1.5;">
+              <div style="font-weight:700;font-size:13px;color:#111;margin-bottom:3px;">${name}</div>
+              <div style="font-size:10px;color:#aaa;font-family:monospace;margin-bottom:8px;">${ser}</div>
+              <div style="margin-bottom:6px;">${dot}<span style="font-size:12px;font-weight:600;color:#333;text-transform:capitalize;">${d.result}</span></div>
+              <div style="font-size:11px;color:#555;margin-bottom:2px;">📦 Batch: ${bat}</div>
+              <div style="font-size:11px;color:#555;margin-bottom:2px;">📍 ${esc(loc)}</div>
+              <div style="font-size:11px;color:#999;">${time}</div>
+            </div>`,
+            { maxWidth: 230 }
+          )
+          .addTo(clusterLayer);
+      });
+
+      mapInstance.addLayer(clusterLayer);
+
+      if (points.length > 0 && filter === 'all') {
+        const bounds = L.latLngBounds(points.map(d => [d.lat, d.lng]));
+        mapInstance.fitBounds(bounds, { padding: [40, 40], maxZoom: 8 });
+      }
+    }
+
+    function toggleMapFullscreen() {
+      const card = document.querySelector('.map-card');
+      const mapEl = document.getElementById('scan-map');
+      const btn   = document.getElementById('map-fs-btn');
+      mapFullscreen = !mapFullscreen;
+
+      if (mapFullscreen) {
+        card.classList.add('map-fullscreen');
+        mapEl.style.height = (window.innerHeight - 148) + 'px';
+        btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;"><path d="M8 3v3a2 2 0 01-2 2H3"/><path d="M21 8h-3a2 2 0 01-2-2V3"/><path d="M3 16h3a2 2 0 012 2v3"/><path d="M16 21v-3a2 2 0 012-2h3"/></svg> Exit`;
+      } else {
+        card.classList.remove('map-fullscreen');
+        mapEl.style.height = '400px';
+        btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;"><path d="M8 3H5a2 2 0 00-2 2v3"/><path d="M21 8V5a2 2 0 00-2-2h-3"/><path d="M3 16v3a2 2 0 002 2h3"/><path d="M16 21h3a2 2 0 002-2v-3"/></svg> Fullscreen`;
+      }
+      mapInstance.invalidateSize();
     }
 
     // ── Batches ────────────────────────────────────────────────────

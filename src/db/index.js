@@ -270,12 +270,27 @@ async function getAnalyticsSummary() {
 async function getMapData(limit = 500) {
   const { data, error } = await db
     .from('scan_logs')
-    .select('lat, lng, result, country, city, scanned_at')
+    .select('serial, lat, lng, result, country, city, scanned_at')
     .not('lat', 'is', null)
     .order('scanned_at', { ascending: false })
     .limit(limit);
   if (error) throw error;
-  return data || [];
+  const rows = data || [];
+  if (!rows.length) return rows;
+
+  // Enrich with product info — two-query pattern, no FK needed
+  const serials = [...new Set(rows.map(r => r.serial))];
+  const { data: prods } = await db
+    .from('products')
+    .select('serial, product_name, batch_code')
+    .in('serial', serials);
+
+  const prodMap = Object.fromEntries((prods || []).map(p => [p.serial, p]));
+  return rows.map(r => ({
+    ...r,
+    product_name: prodMap[r.serial]?.product_name || null,
+    batch_code:   prodMap[r.serial]?.batch_code   || null,
+  }));
 }
 
 module.exports = {
