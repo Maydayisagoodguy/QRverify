@@ -251,7 +251,7 @@
     /* ── Stat cards ───────────────────────────────────────── */
     .stats-grid {
       display: grid;
-      grid-template-columns: repeat(6, 1fr);
+      grid-template-columns: repeat(3, 1fr);
       gap: 16px;
       margin-bottom: 28px;
     }
@@ -259,12 +259,26 @@
     .stat-card {
       background: var(--white);
       border: 1px solid var(--border);
+      border-left: 4px solid var(--border-strong);
       border-radius: var(--radius-md);
-      padding: 24px 22px;
+      padding: 22px 22px 18px;
       box-shadow: var(--shadow-soft);
       transition: box-shadow 0.2s, transform 0.2s;
     }
     .stat-card:hover { box-shadow: 0 8px 32px rgba(0,0,0,0.09); transform: translateY(-2px); }
+
+    .stat-card.sc-green  { border-left-color: #059669; }
+    .stat-card.sc-amber  { border-left-color: #D97706; }
+    .stat-card.sc-red    { border-left-color: #DC2626; }
+    .stat-card.sc-orange { border-left-color: #EA580C; }
+    .stat-card.sc-purple { border-left-color: #7C3AED; }
+
+    .stat-card-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      margin-bottom: 14px;
+    }
 
     .stat-label {
       font-size: 11px;
@@ -272,13 +286,28 @@
       letter-spacing: 0.08em;
       text-transform: uppercase;
       color: var(--text-muted);
-      margin-bottom: 12px;
+      line-height: 1.4;
     }
 
+    .stat-icon {
+      width: 34px; height: 34px;
+      border-radius: var(--radius-sm);
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .stat-icon svg { width: 17px; height: 17px; }
+    .stat-card.sc-green  .stat-icon { background: #ECFDF5; color: #059669; }
+    .stat-card.sc-amber  .stat-icon { background: #FFFBEB; color: #D97706; }
+    .stat-card.sc-red    .stat-icon { background: #FEF2F2; color: #DC2626; }
+    .stat-card.sc-orange .stat-icon { background: #FFF7ED; color: #EA580C; }
+    .stat-card.sc-purple .stat-icon { background: #F5F3FF; color: #7C3AED; }
+    .stat-card:not([class*="sc-"]) .stat-icon,
+    .stat-card.sc-gray .stat-icon   { background: var(--gray-100); color: var(--text-muted); }
+
     .stat-value {
-      font-size: 38px;
-      font-weight: 300;
-      letter-spacing: -0.045em;
+      font-size: 36px;
+      font-weight: 700;
+      letter-spacing: -0.04em;
       color: var(--text-primary);
       line-height: 1;
       margin-bottom: 6px;
@@ -723,6 +752,10 @@
         Alerts
         <span class="nav-badge" id="alert-badge" style="display:none">0</span>
       </button>
+      <button class="nav-item" data-section="network">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1.5 8.5s4-5 10.5-5 10.5 5 10.5 5"/><path d="M5 12s2.5-3.5 7-3.5 7 3.5 7 3.5"/><path d="M8.5 15.5s1.5-2 3.5-2 3.5 2 3.5 2"/><circle cx="12" cy="19" r="1"/></svg>
+        Network
+      </button>
     </div>
 
     <div class="sidebar-footer">
@@ -773,32 +806,62 @@
         </div>
         <div class="stats-grid">
           <div class="stat-card">
-            <div class="stat-label">Total Scans</div>
+            <div class="stat-card-top">
+              <div class="stat-label">Total Scans</div>
+              <div class="stat-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+              </div>
+            </div>
             <div class="stat-value" id="stat-total">—</div>
             <div class="stat-sub">All time</div>
           </div>
-          <div class="stat-card">
-            <div class="stat-label">Verified</div>
+          <div class="stat-card sc-green">
+            <div class="stat-card-top">
+              <div class="stat-label">Verified</div>
+              <div class="stat-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+              </div>
+            </div>
             <div class="stat-value green" id="stat-verified">—</div>
             <div class="stat-sub">Authentic scans</div>
           </div>
-          <div class="stat-card">
-            <div class="stat-label">Warnings</div>
+          <div class="stat-card sc-amber">
+            <div class="stat-card-top">
+              <div class="stat-label">Warnings</div>
+              <div class="stat-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              </div>
+            </div>
             <div class="stat-value amber" id="stat-warning">—</div>
             <div class="stat-sub">Duplicate flags</div>
           </div>
-          <div class="stat-card">
-            <div class="stat-label">Fake / Invalid</div>
+          <div class="stat-card sc-red">
+            <div class="stat-card-top">
+              <div class="stat-label">Fake / Invalid</div>
+              <div class="stat-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+              </div>
+            </div>
             <div class="stat-value red" id="stat-fake">—</div>
             <div class="stat-sub">Bad QR codes</div>
           </div>
-          <div class="stat-card">
-            <div class="stat-label">Active Alerts</div>
+          <div class="stat-card sc-orange">
+            <div class="stat-card-top">
+              <div class="stat-label">Active Alerts</div>
+              <div class="stat-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+              </div>
+            </div>
             <div class="stat-value orange" id="stat-alerts">—</div>
             <div class="stat-sub">Unresolved</div>
           </div>
-          <div class="stat-card">
-            <div class="stat-label">Fraud Rate</div>
+          <div class="stat-card sc-purple">
+            <div class="stat-card-top">
+              <div class="stat-label">Fraud Rate</div>
+              <div class="stat-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="5" x2="5" y2="19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></svg>
+              </div>
+            </div>
             <div class="stat-value" id="stat-fraud-rate">—</div>
             <div class="stat-sub" id="stat-fraud-sub">Warnings + fake / total</div>
           </div>
@@ -1013,6 +1076,43 @@
         </div>
       </section>
 
+      <!-- ── Network ─────────────────────────────────────────── -->
+      <section class="section" id="section-network">
+        <div class="section-header">
+          <div>
+            <div class="section-eyebrow">Analytics</div>
+            <span class="section-title">Network &amp; Carriers</span>
+          </div>
+        </div>
+
+        <div class="table-card" style="margin-bottom:20px;">
+          <div class="card-header">
+            <span class="card-title">Scans by Network / ISP</span>
+            <span class="card-meta" id="isp-count-label">All networks</span>
+          </div>
+          <div style="padding:14px 24px 10px;font-size:13px;color:var(--text-muted);line-height:1.5;border-bottom:1px solid var(--border);">
+            Shows which mobile carrier or internet provider each scan came from — Jio, Airtel, BSNL, etc. Populated as new scans arrive after the v3 migration.
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Network / ISP</th>
+                  <th style="color:#059669;">Verified</th>
+                  <th style="color:#D97706;">Warning</th>
+                  <th style="color:#DC2626;">Fake</th>
+                  <th>Total</th>
+                  <th>Fraud Rate</th>
+                </tr>
+              </thead>
+              <tbody id="isp-body">
+                <tr class="loading-row"><td colspan="6"><div class="spinner" style="margin:0 auto;"></div></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
     </div><!-- /content -->
   </div><!-- /main -->
 
@@ -1029,6 +1129,8 @@
     let mapData        = [];
     let currentMapFilter = 'all';
     let mapFullscreen  = false;
+    let fsOriginalParent = null;
+    let fsOriginalNextSibling = null;
     let activeSection  = 'dashboard';
     const loadedSections = new Set();
 
@@ -1091,10 +1193,11 @@
       batches:   'Batches',
       scans:     'Scan Logs',
       alerts:    'Alerts',
+      network:   'Network & Carriers',
     };
 
     function switchSection(name) {
-      if (!['dashboard','batches','scans','alerts'].includes(name)) name = 'dashboard';
+      if (!['dashboard','batches','scans','alerts','network'].includes(name)) name = 'dashboard';
 
       document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
       document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
@@ -1111,6 +1214,7 @@
         if (name === 'batches')  loadBatches();
         if (name === 'scans')    loadScans();
         if (name === 'alerts')   loadAlerts();
+        if (name === 'network')  loadNetworkSection();
       }
     }
 
@@ -1141,6 +1245,7 @@
       if (activeSection === 'dashboard') loadDashboard();
       if (activeSection === 'batches')  loadBatches();
       if (activeSection === 'scans')    loadScans();
+      if (activeSection === 'network')  loadNetworkSection();
       if (activeSection === 'alerts')   loadAlerts();
       toast('Data refreshed', 'success');
     }
@@ -1181,6 +1286,35 @@
     // ── Dashboard data ─────────────────────────────────────────────
     async function loadDashboard() {
       await Promise.all([loadAlertFeed(), loadRecentScans(), loadMap(), loadGeoTable()]);
+    }
+
+    async function loadNetworkSection() {
+      const body = document.getElementById('isp-body');
+      try {
+        const rows = await api('/admin/analytics/isp');
+        if (!rows.length) {
+          body.innerHTML = `<tr><td colspan="6">${emptyState('No network data yet', 'ISP data is collected from new scans after running the v3 migration in Supabase.')}</td></tr>`;
+          return;
+        }
+        document.getElementById('isp-count-label').textContent = `${rows.length} network${rows.length === 1 ? '' : 's'}`;
+        body.innerHTML = rows.map(r => {
+          const fraudCount = (r.warning || 0) + (r.fake || 0);
+          const fraudRate  = r.total > 0 ? (fraudCount / r.total * 100).toFixed(1) : '0.0';
+          const rateColor  = fraudRate < 5 ? '#059669' : fraudRate < 15 ? '#D97706' : '#DC2626';
+          // Strip AS number prefix if present, e.g. "AS55836 Reliance Jio" → "Reliance Jio"
+          const displayName = (r.isp || '').replace(/^AS\d+\s+/i, '') || r.isp;
+          return `<tr>
+            <td style="font-weight:600;color:var(--text-primary);">${esc(displayName)}</td>
+            <td><span style="color:#059669;font-weight:600;">${fmt(r.verified || 0)}</span></td>
+            <td><span style="color:#D97706;font-weight:600;">${fmt(r.warning || 0)}</span></td>
+            <td><span style="color:#DC2626;font-weight:600;">${fmt(r.fake || 0)}</span></td>
+            <td style="font-weight:700;color:var(--text-primary);">${fmt(r.total)}</td>
+            <td><span style="color:${rateColor};font-weight:700;">${fraudRate}%</span></td>
+          </tr>`;
+        }).join('');
+      } catch {
+        body.innerHTML = `<tr><td colspan="6" style="padding:24px;text-align:center;color:var(--text-muted);font-size:13px;">Failed to load network data.</td></tr>`;
+      }
     }
 
     async function loadGeoTable() {
@@ -1361,20 +1495,42 @@
 
     function toggleMapFullscreen() {
       const card = document.querySelector('.map-card');
-      const btn  = document.getElementById('map-fs-btn');
+      const mapEl = document.getElementById('scan-map');
+      const btn   = document.getElementById('map-fs-btn');
       mapFullscreen = !mapFullscreen;
 
       if (mapFullscreen) {
-        card.classList.add('map-fullscreen');
+        // Remember where the card lives so we can put it back
+        fsOriginalParent = card.parentNode;
+        fsOriginalNextSibling = card.nextSibling;
+
+        // Move card to body — escapes any overflow:auto ancestor
+        document.body.appendChild(card);
+
+        // Apply fullscreen styles inline (class alone can't beat overflow containment)
+        Object.assign(card.style, {
+          position: 'fixed', inset: '0', zIndex: '9999',
+          borderRadius: '0', margin: '0', width: '100%', height: '100%',
+          display: 'flex', flexDirection: 'column',
+        });
+        mapEl.style.cssText = 'flex:1;min-height:0;height:auto;';
         document.body.style.overflow = 'hidden';
+
         btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;"><path d="M8 3v3a2 2 0 01-2 2H3"/><path d="M21 8h-3a2 2 0 01-2-2V3"/><path d="M3 16h3a2 2 0 012 2v3"/><path d="M16 21v-3a2 2 0 012-2h3"/></svg> Exit`;
       } else {
-        card.classList.remove('map-fullscreen');
+        // Restore card to its original position in the DOM
+        if (fsOriginalParent) {
+          fsOriginalParent.insertBefore(card, fsOriginalNextSibling);
+        }
+
+        // Clear all inline styles
+        card.style.cssText = '';
+        mapEl.style.cssText = 'height:400px;';
         document.body.style.overflow = '';
+
         btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;"><path d="M8 3H5a2 2 0 00-2 2v3"/><path d="M21 8V5a2 2 0 00-2-2h-3"/><path d="M3 16v3a2 2 0 002 2h3"/><path d="M16 21h3a2 2 0 002-2v-3"/></svg> Fullscreen`;
       }
-      // Delay so CSS renders before Leaflet recalculates map size
-      setTimeout(() => { if (mapInstance) mapInstance.invalidateSize(); }, 120);
+      setTimeout(() => { if (mapInstance) mapInstance.invalidateSize(); }, 150);
     }
 
     // ── Batches ────────────────────────────────────────────────────

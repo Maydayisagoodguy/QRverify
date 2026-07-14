@@ -92,7 +92,7 @@ async function getBatchProductsForExport(batchCode) {
 
 // ── Scan logs ─────────────────────────────────────────────────────
 
-async function logScan({ serial, ip, country, city, lat, lng, userAgent, deviceToken, result, flagReason }) {
+async function logScan({ serial, ip, country, city, lat, lng, userAgent, deviceToken, result, flagReason, isp }) {
   const { data, error } = await db.from('scan_logs').insert({
     serial,
     ip,
@@ -104,6 +104,7 @@ async function logScan({ serial, ip, country, city, lat, lng, userAgent, deviceT
     device_token: deviceToken || null,
     result,
     flag_reason:  flagReason || null,
+    isp:          isp || null,
   }).select('id').single();
   if (error) throw error;
   return data;
@@ -267,6 +268,23 @@ async function getAnalyticsSummary() {
   };
 }
 
+async function getISPSummary() {
+  const { data, error } = await db
+    .from('scan_logs')
+    .select('isp, result')
+    .not('isp', 'is', null);
+  if (error) throw error;
+
+  const map = {};
+  for (const row of (data || [])) {
+    const key = row.isp;
+    if (!map[key]) map[key] = { isp: key, verified: 0, warning: 0, fake: 0, inactive: 0, total: 0 };
+    map[key][row.result] = (map[key][row.result] || 0) + 1;
+    map[key].total++;
+  }
+  return Object.values(map).sort((a, b) => b.total - a.total);
+}
+
 async function getGeoSummary() {
   const { data, error } = await db
     .from('scan_logs')
@@ -336,6 +354,7 @@ module.exports = {
   logAuditAction,
   // Analytics
   getAnalyticsSummary,
+  getISPSummary,
   getGeoSummary,
   getMapData,
 };

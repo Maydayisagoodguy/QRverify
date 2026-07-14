@@ -18,4 +18,8 @@ module.exports = async function analyticsRoutes(fastify) {
   fastify.get('/analytics/geo', { preHandler: [adminRateLimit, adminAuth] }, async () => {
     return db.getGeoSummary();
   });
+
+  fastify.get('/analytics/isp', { preHandler: [adminRateLimit, adminAuth] }, async () => {
+    return db.getISPSummary();
+  });
 };

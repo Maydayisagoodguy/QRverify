@@ -72,13 +72,13 @@ module.exports = async function verifyRoutes(fastify) {
     }
 
     if (!product) {
-      await safeLogScan({ serial, ip, country, city, lat, lng, userAgent, result: 'fake', flagReason: 'SERIAL_NOT_FOUND' }, request.log);
+      await safeLogScan({ serial, ip, country, city, lat, lng, userAgent, result: 'fake', flagReason: 'SERIAL_NOT_FOUND', isp: vpnInfo?.isp || null }, request.log);
       return reply.redirect(`/result/${encodeURIComponent(serial)}?status=fake`);
     }
 
     // 3. Check if recalled
     if (!product.is_active) {
-      await safeLogScan({ serial, ip, country, city, lat, lng, userAgent, result: 'inactive', flagReason: 'PRODUCT_RECALLED' }, request.log);
+      await safeLogScan({ serial, ip, country, city, lat, lng, userAgent, result: 'inactive', flagReason: 'PRODUCT_RECALLED', isp: vpnInfo?.isp || null }, request.log);
       return reply.redirect(`/result/${encodeURIComponent(serial)}?status=inactive`);
     }
 
@@ -178,7 +178,7 @@ module.exports = async function verifyRoutes(fastify) {
     }
 
     // 6. Log this scan (non-blocking)
-    await safeLogScan({ serial, ip, country, city, lat, lng, userAgent, result, flagReason }, request.log);
+    await safeLogScan({ serial, ip, country, city, lat, lng, userAgent, result, flagReason, isp: vpnInfo?.isp || null }, request.log);
 
     // 7. Persist alerts + email on critical
     for (const a of alerts) {
