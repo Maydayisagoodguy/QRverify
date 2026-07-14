@@ -16,7 +16,9 @@ module.exports = async function alertRoutes(fastify) {
   });
 
   fastify.post('/alerts/:id/resolve', { preHandler: [adminAuth] }, async (request) => {
-    await db.resolveAlert(request.params.id);
+    const { id } = request.params;
+    await db.resolveAlert(id);
+    db.logAuditAction('RESOLVE_ALERT', 'alert', id, null).catch(() => {});
     return { success: true };
   });
 };

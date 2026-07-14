@@ -29,32 +29,51 @@ module.exports = async function uploadRoutes(fastify) {
       return reply.code(400).send({ error: err.message, code: 'PARSE_ERROR' });
     }
 
-    const { products, warnings } = result;
+    const { batches, products, warnings } = result;
     if (!products.length) {
       return reply.code(400).send({ error: 'No valid rows found in Excel', code: 'EMPTY', warnings });
     }
 
-    // Bulk insert into Supabase
+    // 1. Upsert batch rows first (products FK references batch_code)
+    for (const batchMeta of batches.values()) {
+      try {
+        await db.upsertBatch(batchMeta);
+      } catch (err) {
+        request.log.error({ err }, 'Batch upsert failed');
+        return reply.code(500).send({ error: 'Database error creating batch', code: 'DB_ERROR' });
+      }
+    }
+
+    // 2. Bulk insert products
     try {
       await db.insertProducts(products);
     } catch (err) {
-      request.log.error({ err }, 'DB insert failed');
+      request.log.error({ err }, 'Product insert failed');
       return reply.code(500).send({ error: 'Database error during insert', code: 'DB_ERROR' });
     }
 
-    // Group by batch for response
-    const batches = {};
-    for (const p of products) {
-      if (!batches[p.batch_code]) {
-        batches[p.batch_code] = { batch_code: p.batch_code, product_name: p.product_name, count: 0 };
-      }
-      batches[p.batch_code].count++;
+    // 3. Log the upload action for audit trail
+    for (const batchMeta of batches.values()) {
+      db.logAuditAction('UPLOAD_BATCH', 'batch', batchMeta.batchCode, {
+        totalUnits: products.filter(p => p.batch_code === batchMeta.batchCode).length,
+        productName: batchMeta.productName,
+      }).catch(() => {});
+    }
+
+    // Summary for response
+    const batchSummary = [];
+    for (const [code, meta] of batches) {
+      batchSummary.push({
+        batch_code:   code,
+        product_name: meta.productName,
+        count:        products.filter(p => p.batch_code === code).length,
+      });
     }
 
     return {
       success:  true,
       total:    products.length,
-      batches:  Object.values(batches),
+      batches:  batchSummary,
       warnings,
     };
   });
@@ -70,7 +89,6 @@ module.exports = async function uploadRoutes(fastify) {
       return reply.code(404).send({ error: 'Batch not found or empty', code: 'NOT_FOUND' });
     }
 
-    // buildZip pipes directly to reply.raw and finalizes
     await buildZip(products, reply);
   });
 

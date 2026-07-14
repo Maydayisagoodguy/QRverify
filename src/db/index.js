@@ -7,6 +7,42 @@ const db = createClient(config.supabaseUrl, config.supabaseServiceKey, {
   auth: { persistSession: false },
 });
 
+// ── Batches ───────────────────────────────────────────────────────
+
+async function upsertBatch({ batchCode, productName, manufacturer, countryOfOrigin, distributor, regionExpected, productImageUrl }) {
+  const { error } = await db.from('batches').upsert({
+    batch_code:         batchCode,
+    product_name:       productName,
+    manufacturer:       manufacturer || null,
+    country_of_origin:  countryOfOrigin || null,
+    distributor:        distributor || null,
+    region_expected:    regionExpected || null,
+    product_image_url:  productImageUrl || null,
+  }, { onConflict: 'batch_code', ignoreDuplicates: true });
+  if (error) throw error;
+}
+
+async function getBatches() {
+  const { data, error } = await db.rpc('get_batch_summary');
+  if (error) {
+    // Fallback: read directly from batches table (no full products scan)
+    const { data: rows, error: be } = await db
+      .from('batches')
+      .select('batch_code, product_name, total_units, active_units, created_at, status')
+      .order('created_at', { ascending: false });
+    if (be) throw be;
+    return (rows || []).map(r => ({
+      batch_code:   r.batch_code,
+      product_name: r.product_name,
+      total:        r.total_units,
+      active:       r.active_units,
+      created_at:   r.created_at,
+      status:       r.status,
+    }));
+  }
+  return data || [];
+}
+
 // ── Products ──────────────────────────────────────────────────────
 
 async function getProduct(serial) {
@@ -21,19 +57,34 @@ async function insertProducts(products) {
 }
 
 async function deactivateBySerial(serial) {
-  const { error } = await db.from('products').update({ is_active: false }).eq('serial', serial);
+  const { error } = await db
+    .from('products')
+    .update({ is_active: false, recalled_at: new Date().toISOString() })
+    .eq('serial', serial);
   if (error) throw error;
 }
 
 async function deactivateByBatch(batchCode) {
-  const { error } = await db.from('products').update({ is_active: false }).eq('batch_code', batchCode);
+  const { error } = await db
+    .from('products')
+    .update({ is_active: false, recalled_at: new Date().toISOString() })
+    .eq('batch_code', batchCode);
   if (error) throw error;
 }
 
 async function getBatchProducts(batchCode) {
   const { data, error } = await db
     .from('products')
-    .select('serial, product_name, batch_code, qr_url:serial')
+    .select('serial, product_name, batch_code')
+    .eq('batch_code', batchCode);
+  if (error) throw error;
+  return data || [];
+}
+
+async function getBatchProductsForExport(batchCode) {
+  const { data, error } = await db
+    .from('products')
+    .select('serial, hmac, product_name, batch_code')
     .eq('batch_code', batchCode);
   if (error) throw error;
   return data || [];
@@ -41,23 +92,24 @@ async function getBatchProducts(batchCode) {
 
 // ── Scan logs ─────────────────────────────────────────────────────
 
-async function logScan({ serial, ip, country, city, lat, lng, userAgent, result, flagReason }) {
+async function logScan({ serial, ip, country, city, lat, lng, userAgent, deviceToken, result, flagReason }) {
   const { data, error } = await db.from('scan_logs').insert({
     serial,
     ip,
-    country:     country || null,
-    city:        city || null,
-    lat:         lat || null,
-    lng:         lng || null,
-    user_agent:  userAgent || null,
+    country:      country || null,
+    city:         city || null,
+    lat:          lat || null,
+    lng:          lng || null,
+    user_agent:   userAgent || null,
+    device_token: deviceToken || null,
     result,
-    flag_reason: flagReason || null,
+    flag_reason:  flagReason || null,
   }).select('id').single();
   if (error) throw error;
   return data;
 }
 
-async function getScanHistory(serial, limit = 10) {
+async function getScanHistory(serial, limit = 50) {
   const { data, error } = await db
     .from('scan_logs')
     .select('*')
@@ -85,7 +137,7 @@ async function getScanLogs({ result, batchCode, from, to, limit = 100, offset = 
   const rows = data || [];
   if (!rows.length) return rows;
 
-  // Enrich with product info (no FK needed)
+  // Enrich with product info (no FK join — allows fake/invalid serials)
   const serials = [...new Set(rows.map(r => r.serial))];
   const { data: prods } = await db
     .from('products')
@@ -129,54 +181,74 @@ async function getAlerts({ resolved, severity, limit = 50, offset = 0 } = {}) {
 }
 
 async function resolveAlert(id) {
-  const { error } = await db.from('alerts').update({ resolved: true }).eq('id', id);
+  const { error } = await db.from('alerts').update({
+    resolved:    true,
+    resolved_at: new Date().toISOString(),
+  }).eq('id', id);
   if (error) throw error;
 }
 
-// ── Batches ───────────────────────────────────────────────────────
+// ── Consumer reports ──────────────────────────────────────────────
 
-async function getBatches() {
-  const { data, error } = await db.rpc('get_batch_summary');
+async function createReport({ serial, batchCode, reporterIp, reporterCountry, message }) {
+  const { error } = await db.from('consumer_reports').insert({
+    serial,
+    batch_code:       batchCode || null,
+    reporter_ip:      reporterIp || null,
+    reporter_country: reporterCountry || null,
+    message:          message || null,
+  });
+  if (error) throw error;
+}
+
+async function getReports({ status, limit = 50, offset = 0 } = {}) {
+  let q = db
+    .from('consumer_reports')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .range(offset, offset + limit - 1);
+
+  if (status) q = q.eq('status', status);
+
+  const { data, error } = await q;
+  if (error) throw error;
+  return data || [];
+}
+
+// ── Audit log ─────────────────────────────────────────────────────
+
+async function logAuditAction(action, targetType, targetId, details) {
+  const { error } = await db.from('admin_audit_log').insert({
+    action,
+    target_type: targetType || null,
+    target_id:   String(targetId || ''),
+    details:     details || null,
+  });
   if (error) {
-    // Fallback: manual query
-    const { data: products, error: pe } = await db
-      .from('products')
-      .select('batch_code, product_name, created_at, is_active')
-      .order('created_at', { ascending: false });
-    if (pe) throw pe;
-
-    const map = new Map();
-    for (const p of products || []) {
-      if (!map.has(p.batch_code)) {
-        map.set(p.batch_code, {
-          batch_code:   p.batch_code,
-          product_name: p.product_name,
-          total:        0,
-          active:       0,
-          created_at:   p.created_at,
-        });
-      }
-      const b = map.get(p.batch_code);
-      b.total++;
-      if (p.is_active) b.active++;
-    }
-    return Array.from(map.values());
+    // Audit failures are non-fatal — log but don't throw
+    console.error('[audit] logAuditAction failed:', error.message);
   }
-  return data || [];
-}
-
-async function getBatchProductsForExport(batchCode) {
-  const { data, error } = await db
-    .from('products')
-    .select('serial, hmac, product_name, batch_code')
-    .eq('batch_code', batchCode);
-  if (error) throw error;
-  return data || [];
 }
 
 // ── Analytics ─────────────────────────────────────────────────────
 
 async function getAnalyticsSummary() {
+  // Single DB round-trip via SQL function (replaces 5 parallel COUNT queries)
+  const { data, error } = await db.rpc('get_analytics_summary');
+  if (!error && data && data[0]) {
+    const r = data[0];
+    return {
+      total:        Number(r.total)        || 0,
+      verified:     Number(r.verified)     || 0,
+      warning:      Number(r.warning)      || 0,
+      fake:         Number(r.fake)         || 0,
+      inactive:     Number(r.inactive)     || 0,
+      activeAlerts: Number(r.active_alerts) || 0,
+      totalBatches: Number(r.total_batches) || 0,
+    };
+  }
+
+  // Fallback: 5 parallel COUNT queries (if RPC not yet created in Supabase)
   const [total, verified, warning, fake, activeAlerts] = await Promise.all([
     db.from('scan_logs').select('id', { count: 'exact', head: true }),
     db.from('scan_logs').select('id', { count: 'exact', head: true }).eq('result', 'verified'),
@@ -186,11 +258,12 @@ async function getAnalyticsSummary() {
   ]);
 
   return {
-    total:        total.count || 0,
-    verified:     verified.count || 0,
-    warning:      warning.count || 0,
-    fake:         fake.count || 0,
+    total:        total.count        || 0,
+    verified:     verified.count     || 0,
+    warning:      warning.count      || 0,
+    fake:         fake.count         || 0,
     activeAlerts: activeAlerts.count || 0,
+    totalBatches: 0,
   };
 }
 
@@ -206,19 +279,30 @@ async function getMapData(limit = 500) {
 }
 
 module.exports = {
+  // Batches
+  upsertBatch,
+  getBatches,
+  // Products
   getProduct,
   insertProducts,
   deactivateBySerial,
   deactivateByBatch,
   getBatchProducts,
   getBatchProductsForExport,
+  // Scan logs
   logScan,
   getScanHistory,
   getScanLogs,
+  // Alerts
   createAlert,
   getAlerts,
   resolveAlert,
-  getBatches,
+  // Consumer reports
+  createReport,
+  getReports,
+  // Audit
+  logAuditAction,
+  // Analytics
   getAnalyticsSummary,
   getMapData,
 };

@@ -12,9 +12,15 @@ module.exports = async function batchRoutes(fastify) {
   fastify.post('/products/deactivate', { preHandler: [adminAuth] }, async (request, reply) => {
     const { serial, batch_code } = request.body || {};
 
-    if (serial)     await db.deactivateBySerial(serial);
-    else if (batch_code) await db.deactivateByBatch(batch_code);
-    else return reply.code(400).send({ error: 'Provide serial or batch_code', code: 'MISSING_PARAM' });
+    if (serial) {
+      await db.deactivateBySerial(serial);
+      db.logAuditAction('RECALL_PRODUCT', 'product', serial, null).catch(() => {});
+    } else if (batch_code) {
+      await db.deactivateByBatch(batch_code);
+      db.logAuditAction('RECALL_BATCH', 'batch', batch_code, null).catch(() => {});
+    } else {
+      return reply.code(400).send({ error: 'Provide serial or batch_code', code: 'MISSING_PARAM' });
+    }
 
     return { success: true };
   });

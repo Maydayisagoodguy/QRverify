@@ -45,6 +45,8 @@ async function processExcel(fileBuffer) {
 
   const warnings  = [];
   const products  = [];
+  // Map of batch_code → batch metadata for the batches table
+  const batchMap  = new Map();
 
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
@@ -62,26 +64,34 @@ async function processExcel(fileBuffer) {
       continue;
     }
 
+    const batchCode = String(row.batch_code).trim();
+
+    // Capture batch metadata (last row wins if batch_code repeated)
+    batchMap.set(batchCode, {
+      batchCode,
+      productName:       String(row.product_name).trim(),
+      manufacturer:      row.manufacturer      ? String(row.manufacturer).trim()      : null,
+      countryOfOrigin:   row.country_of_origin ? String(row.country_of_origin).trim() : null,
+      distributor:       row.distributor       ? String(row.distributor).trim()       : null,
+      regionExpected:    row.region            ? String(row.region).trim()            : null,
+      productImageUrl:   row.product_image_url || null,
+    });
+
     for (let j = 0; j < quantity; j++) {
       const serial = generateSerial(String(row.serial_prefix).trim().toUpperCase());
       const hmac   = generateHMAC(serial);
       products.push({
         serial,
         hmac,
-        batch_code:         String(row.batch_code).trim(),
+        batch_code:         batchCode,
         product_name:       String(row.product_name).trim(),
-        manufacturer:       row.manufacturer ? String(row.manufacturer).trim() : null,
-        country_of_origin:  row.country_of_origin ? String(row.country_of_origin).trim() : null,
         manufacturing_date: row.manufacturing_date || null,
         expiry_date:        row.expiry_date || null,
-        product_image_url:  row.product_image_url || null,
-        distributor:        row.distributor || null,
-        region_expected:    row.region || null,
       });
     }
   }
 
-  return { products, warnings };
+  return { batches: batchMap, products, warnings };
 }
 
 async function buildZip(products, reply) {
