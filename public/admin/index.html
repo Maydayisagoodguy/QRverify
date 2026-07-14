@@ -5,7 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Admin — First Molecule QR Verify</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <script>(function(){var t=localStorage.getItem('fm-theme');if(t)document.documentElement.dataset.theme=t;else if(window.matchMedia('(prefers-color-scheme: dark)').matches)document.documentElement.dataset.theme='dark';})()</script>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
@@ -13,34 +15,51 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --red:          #B81F24;
-      --red-dark:     #9a1a1e;
-      --black:        #111111;
-      --black-deep:   #050505;
-      --white:        #FFFFFF;
-      --gray-100:     #F6F6F6;
-      --gray-fafa:    #FAFAFA;
-      --border:       #EAEAEA;
-      --border-strong:#D0D0D0;
-      --text-primary: #111111;
-      --text-secondary:#555555;
-      --text-muted:   #777777;
-      --text-caption: #999999;
-      --surface:      #FAFAFA;
-      --shadow-soft:  0 4px 24px rgba(0,0,0,0.06);
-      --shadow-float: 0 8px 40px rgba(0,0,0,0.10);
-      --radius-xs:    6px;
-      --radius-sm:    10px;
-      --radius-md:    12px;
-      --radius-lg:    20px;
-      --radius-pill:  999px;
+      --red:           #B81F24;
+      --red-dark:      #9a1a1e;
+      --black:         #09090B;
+      --black-deep:    #000000;
+      --white:         #FFFFFF;
+      --surface:       #FFFFFF;
+      --bg:            #F4F4F5;
+      --gray-100:      #F4F4F5;
+      --gray-fafa:     #FAFAFA;
+      --border:        #E4E4E7;
+      --border-strong: #D4D4D8;
+      --text-primary:  #09090B;
+      --text-secondary:#52525B;
+      --text-muted:    #A1A1AA;
+      --text-caption:  #A1A1AA;
+      --shadow-soft:   0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+      --shadow-float:  0 10px 40px rgba(0,0,0,0.12);
+      --radius-xs:     4px;
+      --radius-sm:     6px;
+      --radius-md:     8px;
+      --radius-lg:     12px;
+      --radius-pill:   999px;
+    }
+
+    html[data-theme="dark"] {
+      --white:         #141414;
+      --surface:       #141414;
+      --bg:            #0C0C0C;
+      --gray-100:      #0C0C0C;
+      --gray-fafa:     #1C1C1C;
+      --border:        #272727;
+      --border-strong: #333333;
+      --text-primary:  #ECECEC;
+      --text-secondary:#8A8A8A;
+      --text-muted:    #555555;
+      --text-caption:  #555555;
+      --shadow-soft:   0 1px 3px rgba(0,0,0,0.4), 0 1px 2px rgba(0,0,0,0.3);
+      --shadow-float:  0 10px 40px rgba(0,0,0,0.6);
     }
 
     html { height: 100%; }
 
     body {
-      font-family: 'Manrope', 'Inter', 'Helvetica Neue', Arial, sans-serif;
-      background: var(--gray-100);
+      font-family: 'Inter', 'Helvetica Neue', Arial, sans-serif;
+      background: var(--bg);
       color: var(--text-primary);
       -webkit-font-smoothing: antialiased;
       min-height: 100vh;
@@ -166,6 +185,19 @@
     .logout-btn:hover { color: rgba(255,255,255,0.7); }
     .logout-btn svg { width: 13px; height: 13px; }
 
+    html[data-theme="dark"] .sidebar { background: #080808; border-right: 1px solid #1A1A1A; }
+    html[data-theme="dark"] .sidebar-brand { border-bottom-color: rgba(255,255,255,0.05); }
+    html[data-theme="dark"] .filter-bar select,
+    html[data-theme="dark"] .filter-bar input { background: var(--surface); color: var(--text-primary); }
+    html[data-theme="dark"] .auth-card { background: #1C1C1C; }
+    html[data-theme="dark"] .auth-logo-name { color: var(--text-primary); }
+    html[data-theme="dark"] .input-group input { background: #0C0C0C; color: var(--text-primary); }
+    html[data-theme="dark"] .btn-ghost { color: var(--text-secondary); }
+    html[data-theme="dark"] .btn-danger-soft { background: rgba(153,27,27,0.2); color: #FCA5A5; }
+    html[data-theme="dark"] .marker-cluster-small div,
+    html[data-theme="dark"] .marker-cluster-medium div,
+    html[data-theme="dark"] .marker-cluster-large div { font-family: 'Inter', sans-serif !important; }
+
     /* ── Main ─────────────────────────────────────────────── */
     .main {
       flex: 1;
@@ -173,7 +205,7 @@
       flex-direction: column;
       min-height: 100vh;
       min-width: 0;
-      background: var(--gray-100);
+      background: var(--bg);
     }
 
     .topbar {
@@ -242,9 +274,9 @@
     }
 
     .section-title {
-      font-size: 26px;
-      font-weight: 800;
-      letter-spacing: -0.035em;
+      font-size: 22px;
+      font-weight: 600;
+      letter-spacing: -0.02em;
       color: var(--text-primary);
     }
 
@@ -252,73 +284,40 @@
     .stats-grid {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
-      gap: 16px;
-      margin-bottom: 28px;
+      gap: 12px;
+      margin-bottom: 24px;
     }
 
     .stat-card {
-      background: var(--white);
+      background: var(--surface);
       border: 1px solid var(--border);
-      border-left: 4px solid var(--border-strong);
       border-radius: var(--radius-md);
-      padding: 22px 22px 18px;
-      box-shadow: var(--shadow-soft);
-      transition: box-shadow 0.2s, transform 0.2s;
-    }
-    .stat-card:hover { box-shadow: 0 8px 32px rgba(0,0,0,0.09); transform: translateY(-2px); }
-
-    .stat-card.sc-green  { border-left-color: #059669; }
-    .stat-card.sc-amber  { border-left-color: #D97706; }
-    .stat-card.sc-red    { border-left-color: #DC2626; }
-    .stat-card.sc-orange { border-left-color: #EA580C; }
-    .stat-card.sc-purple { border-left-color: #7C3AED; }
-
-    .stat-card-top {
-      display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      margin-bottom: 14px;
+      padding: 24px;
     }
 
     .stat-label {
       font-size: 11px;
-      font-weight: 700;
-      letter-spacing: 0.08em;
+      font-weight: 500;
+      letter-spacing: 0.06em;
       text-transform: uppercase;
       color: var(--text-muted);
-      line-height: 1.4;
+      margin-bottom: 14px;
     }
-
-    .stat-icon {
-      width: 34px; height: 34px;
-      border-radius: var(--radius-sm);
-      display: flex; align-items: center; justify-content: center;
-      flex-shrink: 0;
-    }
-    .stat-icon svg { width: 17px; height: 17px; }
-    .stat-card.sc-green  .stat-icon { background: #ECFDF5; color: #059669; }
-    .stat-card.sc-amber  .stat-icon { background: #FFFBEB; color: #D97706; }
-    .stat-card.sc-red    .stat-icon { background: #FEF2F2; color: #DC2626; }
-    .stat-card.sc-orange .stat-icon { background: #FFF7ED; color: #EA580C; }
-    .stat-card.sc-purple .stat-icon { background: #F5F3FF; color: #7C3AED; }
-    .stat-card:not([class*="sc-"]) .stat-icon,
-    .stat-card.sc-gray .stat-icon   { background: var(--gray-100); color: var(--text-muted); }
 
     .stat-value {
-      font-size: 36px;
-      font-weight: 700;
-      letter-spacing: -0.04em;
+      font-size: 32px;
+      font-weight: 600;
+      letter-spacing: -0.03em;
       color: var(--text-primary);
       line-height: 1;
       margin-bottom: 6px;
     }
 
-    .stat-value.green  { color: #059669; }
-    .stat-value.amber  { color: #D97706; }
+    .stat-value.green  { color: #16A34A; }
+    .stat-value.amber  { color: #CA8A04; }
     .stat-value.red    { color: #DC2626; }
-    .stat-value.orange { color: #EA580C; }
 
-    .stat-sub { font-size: 12px; color: var(--text-muted); font-weight: 500; }
+    .stat-sub { font-size: 12px; color: var(--text-muted); font-weight: 400; }
 
     /* ── Two-col layout ───────────────────────────────────── */
     .two-col {
@@ -366,7 +365,7 @@
       background-color: rgba(184,31,36,0.85) !important;
       color: #fff !important;
       font-weight: 700 !important;
-      font-family: 'Manrope', sans-serif !important;
+      font-family: 'Inter', sans-serif !important;
       font-size: 12px !important;
     }
 
@@ -783,6 +782,9 @@
         <span class="topbar-title" id="topbar-title">Dashboard</span>
       </div>
       <div class="topbar-right">
+        <button class="btn btn-ghost btn-sm" id="theme-btn" onclick="toggleTheme()" title="Toggle dark mode">
+          <svg id="theme-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+        </button>
         <button class="btn btn-ghost btn-sm" onclick="refreshData()">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
           Refresh
@@ -806,62 +808,32 @@
         </div>
         <div class="stats-grid">
           <div class="stat-card">
-            <div class="stat-card-top">
-              <div class="stat-label">Total Scans</div>
-              <div class="stat-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
-              </div>
-            </div>
+            <div class="stat-label">Total Scans</div>
             <div class="stat-value" id="stat-total">—</div>
             <div class="stat-sub">All time</div>
           </div>
-          <div class="stat-card sc-green">
-            <div class="stat-card-top">
-              <div class="stat-label">Verified</div>
-              <div class="stat-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-              </div>
-            </div>
-            <div class="stat-value green" id="stat-verified">—</div>
+          <div class="stat-card">
+            <div class="stat-label">Verified</div>
+            <div class="stat-value" id="stat-verified">—</div>
             <div class="stat-sub">Authentic scans</div>
           </div>
-          <div class="stat-card sc-amber">
-            <div class="stat-card-top">
-              <div class="stat-label">Warnings</div>
-              <div class="stat-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-              </div>
-            </div>
-            <div class="stat-value amber" id="stat-warning">—</div>
+          <div class="stat-card">
+            <div class="stat-label">Warnings</div>
+            <div class="stat-value" id="stat-warning">—</div>
             <div class="stat-sub">Duplicate flags</div>
           </div>
-          <div class="stat-card sc-red">
-            <div class="stat-card-top">
-              <div class="stat-label">Fake / Invalid</div>
-              <div class="stat-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
-              </div>
-            </div>
-            <div class="stat-value red" id="stat-fake">—</div>
+          <div class="stat-card">
+            <div class="stat-label">Fake / Invalid</div>
+            <div class="stat-value" id="stat-fake">—</div>
             <div class="stat-sub">Bad QR codes</div>
           </div>
-          <div class="stat-card sc-orange">
-            <div class="stat-card-top">
-              <div class="stat-label">Active Alerts</div>
-              <div class="stat-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
-              </div>
-            </div>
-            <div class="stat-value orange" id="stat-alerts">—</div>
+          <div class="stat-card">
+            <div class="stat-label">Active Alerts</div>
+            <div class="stat-value" id="stat-alerts">—</div>
             <div class="stat-sub">Unresolved</div>
           </div>
-          <div class="stat-card sc-purple">
-            <div class="stat-card-top">
-              <div class="stat-label">Fraud Rate</div>
-              <div class="stat-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="5" x2="5" y2="19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></svg>
-              </div>
-            </div>
+          <div class="stat-card">
+            <div class="stat-label">Fraud Rate</div>
             <div class="stat-value" id="stat-fraud-rate">—</div>
             <div class="stat-sub" id="stat-fraud-sub">Warnings + fake / total</div>
           </div>
@@ -1133,6 +1105,28 @@
     let fsOriginalNextSibling = null;
     let activeSection  = 'dashboard';
     const loadedSections = new Set();
+
+    // ── Theme ──────────────────────────────────────────────────────
+    function toggleTheme() {
+      const isDark = document.documentElement.dataset.theme === 'dark';
+      const next   = isDark ? 'light' : 'dark';
+      document.documentElement.dataset.theme = next;
+      localStorage.setItem('fm-theme', next);
+      updateThemeIcon(next);
+    }
+    function updateThemeIcon(theme) {
+      const icon = document.getElementById('theme-icon');
+      if (!icon) return;
+      if (theme === 'dark') {
+        // Sun icon — switch to light
+        icon.innerHTML = '<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>';
+      } else {
+        // Moon icon — switch to dark
+        icon.innerHTML = '<path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>';
+      }
+    }
+    // Apply correct icon on load
+    updateThemeIcon(document.documentElement.dataset.theme || 'light');
 
     // ── Auth ───────────────────────────────────────────────────────
     function init() {
