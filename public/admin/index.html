@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <script>(function(){var t=localStorage.getItem('fm-theme');if(t)document.documentElement.dataset.theme=t;else if(window.matchMedia('(prefers-color-scheme: dark)').matches)document.documentElement.dataset.theme='dark';})()</script>
+  <script>(function(){var t=localStorage.getItem('fm-theme');if(t==='dark'||(!t&&window.matchMedia('(prefers-color-scheme: dark)').matches)){document.documentElement.classList.add('dark');}})()</script>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
@@ -39,7 +39,7 @@
       --radius-pill:   999px;
     }
 
-    html[data-theme="dark"] {
+    html.dark {
       --white:         #141414;
       --surface:       #141414;
       --bg:            #0C0C0C;
@@ -185,18 +185,18 @@
     .logout-btn:hover { color: rgba(255,255,255,0.7); }
     .logout-btn svg { width: 13px; height: 13px; }
 
-    html[data-theme="dark"] .sidebar { background: #080808; border-right: 1px solid #1A1A1A; }
-    html[data-theme="dark"] .sidebar-brand { border-bottom-color: rgba(255,255,255,0.05); }
-    html[data-theme="dark"] .filter-bar select,
-    html[data-theme="dark"] .filter-bar input { background: var(--surface); color: var(--text-primary); }
-    html[data-theme="dark"] .auth-card { background: #1C1C1C; }
-    html[data-theme="dark"] .auth-logo-name { color: var(--text-primary); }
-    html[data-theme="dark"] .input-group input { background: #0C0C0C; color: var(--text-primary); }
-    html[data-theme="dark"] .btn-ghost { color: var(--text-secondary); }
-    html[data-theme="dark"] .btn-danger-soft { background: rgba(153,27,27,0.2); color: #FCA5A5; }
-    html[data-theme="dark"] .marker-cluster-small div,
-    html[data-theme="dark"] .marker-cluster-medium div,
-    html[data-theme="dark"] .marker-cluster-large div { font-family: 'Inter', sans-serif !important; }
+    html.dark .sidebar { background: #080808; border-right: 1px solid #1A1A1A; }
+    html.dark .sidebar-brand { border-bottom-color: rgba(255,255,255,0.05); }
+    html.dark .filter-bar select,
+    html.dark .filter-bar input { background: var(--surface); color: var(--text-primary); }
+    html.dark .auth-card { background: #1C1C1C; }
+    html.dark .auth-logo-name { color: var(--text-primary); }
+    html.dark .input-group input { background: #0C0C0C; color: var(--text-primary); }
+    html.dark .btn-ghost { color: var(--text-secondary); }
+    html.dark .btn-danger-soft { background: rgba(153,27,27,0.2); color: #FCA5A5; }
+    html.dark .marker-cluster-small div,
+    html.dark .marker-cluster-medium div,
+    html.dark .marker-cluster-large div { font-family: 'Inter', sans-serif !important; }
 
     /* ── Main ─────────────────────────────────────────────── */
     .main {
@@ -1116,11 +1116,16 @@
 
     // ── Theme ──────────────────────────────────────────────────────
     function toggleTheme() {
-      const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-      const next   = isDark ? 'light' : 'dark';
-      document.documentElement.setAttribute('data-theme', next);
-      localStorage.setItem('fm-theme', next);
-      renderThemeBtn(next);
+      const isDark = document.documentElement.classList.contains('dark');
+      if (isDark) {
+        document.documentElement.classList.remove('dark');
+        localStorage.setItem('fm-theme', 'light');
+        renderThemeBtn('light');
+      } else {
+        document.documentElement.classList.add('dark');
+        localStorage.setItem('fm-theme', 'dark');
+        renderThemeBtn('dark');
+      }
     }
     function renderThemeBtn(theme) {
       const btn = document.getElementById('theme-btn');
@@ -1133,7 +1138,7 @@
     }
 
     // Render theme button immediately on load
-    renderThemeBtn(document.documentElement.getAttribute('data-theme') || 'light');
+    renderThemeBtn(document.documentElement.classList.contains('dark') ? 'dark' : 'light');
 
     // ── Auth ───────────────────────────────────────────────────────
     function init() {
