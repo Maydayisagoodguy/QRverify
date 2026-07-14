@@ -123,6 +123,15 @@ module.exports = async function verifyRoutes(fastify) {
         });
       }
 
+      // Rule E: 5+ total scans = high scan volume alert
+      const totalScans = history.length + 1;
+      if (totalScans >= 5) {
+        alerts.push({
+          type: 'HIGH_SCAN_COUNT', severity: 'high',
+          details: { totalScans, serial, batchCode: product.batch_code, ip, country },
+        });
+      }
+
       // Rule D: same serial scanned from 2+ countries today = geo anomaly
       if (country) {
         const today = new Date();
@@ -168,7 +177,8 @@ module.exports = async function verifyRoutes(fastify) {
       }
     }
 
-    // 8. Redirect to result
-    return reply.redirect(`/result/${encodeURIComponent(serial)}?status=${result}`);
+    // 8. Redirect to result — pass previous scan count for display
+    const prevScans = history.length;
+    return reply.redirect(`/result/${encodeURIComponent(serial)}?status=${result}&scans=${prevScans}`);
   });
 };
