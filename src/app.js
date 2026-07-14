@@ -12,7 +12,7 @@ const fs   = require('fs');
 const fastify = require('fastify')({ logger: true, trustProxy: true });
 const config  = require('./config');
 
-// ── Inject admin key into HTML at serve time (no manual login needed) ──
+// ── Inject admin key into HTML at serve time ──────────────────────
 function injectKey(file) {
   const html = fs.readFileSync(path.join(__dirname, '..', 'public', file), 'utf8');
   return html.replace(
@@ -20,6 +20,28 @@ function injectKey(file) {
     `<script>window.__ADMIN_KEY__=${JSON.stringify(config.adminApiKey)};</script></head>`
   );
 }
+
+// ── Security headers ──────────────────────────────────────────────
+fastify.register(require('@fastify/helmet'), {
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc:     ["'self'"],
+      scriptSrc:      ["'self'", "'unsafe-inline'"],   // inline scripts needed for admin dashboard
+      styleSrc:       ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+      fontSrc:        ["'self'", 'https://fonts.gstatic.com'],
+      imgSrc:         ["'self'", 'data:', 'https:', 'blob:'],
+      connectSrc:     ["'self'"],
+      frameSrc:       ["'none'"],
+      objectSrc:      ["'none'"],
+      upgradeInsecureRequests: [],
+    },
+  },
+  crossOriginEmbedderPolicy: false,  // needed for Leaflet map tiles
+  hsts: { maxAge: 31536000, includeSubDomains: true, preload: true },
+  frameguard: { action: 'deny' },
+  xContentTypeOptions: true,
+  referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+});
 
 // ── Plugins ───────────────────────────────────────────────────────
 fastify.register(require('@fastify/static'), {
@@ -33,11 +55,24 @@ fastify.register(require('@fastify/multipart'), {
 });
 
 // ── HTML page routes ──────────────────────────────────────────────
-fastify.get('/',             async (req, reply) => reply.redirect('/admin'));
-fastify.get('/admin',        async (req, reply) => reply.redirect('/admin/'));
-fastify.get('/admin/',       async (req, reply) => reply.type('text/html').send(injectKey('admin/index.html')));
-fastify.get('/admin/upload', async (req, reply) => reply.type('text/html').send(injectKey('admin/upload.html')));
-fastify.get('/result/:serial', async (req, reply) => reply.sendFile('result.html'));
+fastify.get('/', async (req, reply) => reply.redirect('/admin'));
+fastify.get('/admin', async (req, reply) => reply.redirect('/admin/'));
+
+fastify.get('/admin/', async (req, reply) => {
+  reply.type('text/html');
+  return injectKey('admin/index.html');
+});
+
+fastify.get('/admin/upload', async (req, reply) => {
+  reply.type('text/html');
+  return injectKey('admin/upload.html');
+});
+
+// Consumer result page — tell crawlers/bots not to index these
+fastify.get('/result/:serial', async (req, reply) => {
+  reply.header('X-Robots-Tag', 'noindex, nofollow, noarchive');
+  return reply.sendFile('result.html');
+});
 
 // ── API routes ────────────────────────────────────────────────────
 fastify.register(require('./routes/consumer/verify'),  { prefix: '/v' });
@@ -49,7 +84,7 @@ fastify.register(require('./routes/admin/alerts'),     { prefix: '/admin' });
 fastify.register(require('./routes/admin/analytics'),  { prefix: '/admin' });
 
 // ── Health check ──────────────────────────────────────────────────
-fastify.get('/health', async () => ({ status: 'ok', ts: new Date().toISOString() }));
+fastify.get('/health', async () => ({ status: 'ok' }));
 
 // ── Error handler ─────────────────────────────────────────────────
 fastify.setErrorHandler((err, request, reply) => {

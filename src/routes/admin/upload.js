@@ -1,6 +1,7 @@
 'use strict';
 
 const adminAuth = require('../../middleware/adminAuth');
+const { adminRateLimit } = require('../../middleware/rateLimit');
 const db        = require('../../db');
 const { processExcel, buildZip } = require('../../services/qrgen');
 
@@ -8,7 +9,7 @@ module.exports = async function uploadRoutes(fastify) {
 
   // POST /admin/upload — accepts multipart Excel file
   fastify.post('/upload', {
-    preHandler: [adminAuth],
+    preHandler: [adminRateLimit, adminAuth],
   }, async (request, reply) => {
     const data = await request.file();
     if (!data) return reply.code(400).send({ error: 'No file uploaded', code: 'NO_FILE' });
@@ -80,7 +81,7 @@ module.exports = async function uploadRoutes(fastify) {
 
   // GET /admin/batches/:code/export — stream ZIP of QR PNGs
   fastify.get('/batches/:code/export', {
-    preHandler: [adminAuth],
+    preHandler: [adminRateLimit, adminAuth],
   }, async (request, reply) => {
     const { code } = request.params;
 

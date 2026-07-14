@@ -50,4 +50,23 @@ async function strictRateLimit(request, reply) {
   }
 }
 
-module.exports = { verifyRateLimit, strictRateLimit };
+// Admin endpoints: 60 req/min per IP
+async function adminRateLimit(request, reply) {
+  const client = getRedis();
+  if (!client) return;
+
+  const ip  = request.ip || 'unknown';
+  const key = `rl:admin:${ip}`;
+
+  try {
+    const count = await client.incr(key);
+    if (count === 1) await client.expire(key, 60);
+    if (count > 60) {
+      return reply.code(429).send({ error: 'Rate limit exceeded', code: 'RATE_LIMITED' });
+    }
+  } catch (err) {
+    request.log.warn({ err }, 'Admin rate limit check failed');
+  }
+}
+
+module.exports = { verifyRateLimit, strictRateLimit, adminRateLimit };

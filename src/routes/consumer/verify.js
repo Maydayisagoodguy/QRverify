@@ -39,6 +39,15 @@ module.exports = async function verifyRoutes(fastify) {
     const ip        = request.ip;
     const userAgent = request.headers['user-agent'] || '';
 
+    // Reject obviously malformed inputs immediately — before any DB or geo work
+    if (!serial || serial.length > 200) {
+      return reply.redirect('/result/invalid?status=fake');
+    }
+    if (!hmac || hmac.length !== 16 || !/^[0-9a-f]+$/i.test(hmac)) {
+      await safeLogScan({ serial: serial.slice(0, 200), ip, country: null, city: null, lat: null, lng: null, userAgent, result: 'fake', flagReason: 'INVALID_HMAC_FORMAT' }, request.log);
+      return reply.redirect(`/result/${encodeURIComponent(serial.slice(0, 200))}?status=fake`);
+    }
+
     // Geo-lookup first — so ALL scan types (fake, inactive, verified) get location data
     const { country, city, lat, lng } = lookupIP(ip);
     const hasRealIP = isPublicIP(ip);

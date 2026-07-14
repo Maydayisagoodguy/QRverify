@@ -1,11 +1,12 @@
 'use strict';
 
 const adminAuth = require('../../middleware/adminAuth');
+const { adminRateLimit } = require('../../middleware/rateLimit');
 const db        = require('../../db');
 
 module.exports = async function scanRoutes(fastify) {
 
-  fastify.get('/scans', { preHandler: [adminAuth] }, async (request) => {
+  fastify.get('/scans', { preHandler: [adminRateLimit, adminAuth] }, async (request) => {
     const { result, batch, from, to, limit = '100', offset = '0' } = request.query;
     return db.getScanLogs({
       result:    result || undefined,
