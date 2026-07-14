@@ -168,7 +168,9 @@
     .content {
       flex: 1;
       padding: 48px 40px;
-      max-width: 800px;
+      max-width: 720px;
+      width: 100%;
+      margin: 0 auto;
       min-height: 100vh;
     }
 
@@ -563,32 +565,6 @@
       <!-- Result -->
       <div class="result-card" id="result-card"></div>
 
-      <!-- Column reference -->
-      <div class="ref-card">
-        <div class="ref-card-title">Required Excel columns</div>
-        <table class="col-table">
-          <thead>
-            <tr>
-              <th>Column name</th>
-              <th>Required</th>
-              <th>Example</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr><td>product_name</td><td><span class="required-dot"></span>Yes</td><td>Organic Honey 500g</td></tr>
-            <tr><td>batch_code</td><td><span class="required-dot"></span>Yes</td><td>BATCH-JAN-2025-001</td></tr>
-            <tr><td>serial_prefix</td><td><span class="required-dot"></span>Yes</td><td>HONEY</td></tr>
-            <tr><td>quantity</td><td><span class="required-dot"></span>Yes</td><td>500</td></tr>
-            <tr><td>manufacturing_date</td><td><span class="required-dot"></span>Yes</td><td>2025-01-15</td></tr>
-            <tr><td>expiry_date</td><td><span class="required-dot"></span>Yes</td><td>2027-01-14</td></tr>
-            <tr><td>manufacturer</td><td><span class="required-dot"></span>Yes</td><td>NatureFarm Co.</td></tr>
-            <tr><td>country_of_origin</td><td><span class="required-dot"></span>Yes</td><td>India</td></tr>
-            <tr><td>product_image_url</td><td style="color:var(--text-muted);">Optional</td><td>https://cdn.example.com/img.jpg</td></tr>
-            <tr><td>distributor</td><td style="color:var(--text-muted);">Optional</td><td>Metro Distributors</td></tr>
-            <tr><td>region</td><td style="color:var(--text-muted);">Optional</td><td>South India</td></tr>
-          </tbody>
-        </table>
-      </div>
     </div>
   </div>
 

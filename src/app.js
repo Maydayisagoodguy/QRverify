@@ -26,8 +26,8 @@ fastify.register(require('@fastify/helmet'), {
   contentSecurityPolicy: {
     directives: {
       defaultSrc:     ["'self'"],
-      scriptSrc:      ["'self'", "'unsafe-inline'"],   // inline scripts needed for admin dashboard
-      styleSrc:       ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+      scriptSrc:      ["'self'", "'unsafe-inline'", 'https://unpkg.com'],
+      styleSrc:       ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com', 'https://unpkg.com'],
       fontSrc:        ["'self'", 'https://fonts.gstatic.com'],
       imgSrc:         ["'self'", 'data:', 'https:', 'blob:'],
       connectSrc:     ["'self'"],
