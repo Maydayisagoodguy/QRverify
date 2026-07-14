@@ -1,14 +1,34 @@
 'use strict';
 
-const http = require('http');
+const https = require('https');
 
-// ip-api.com free tier — 45 req/min, no registration needed
-// hosting:true means the IP belongs to a datacenter, VPN provider, or cloud host
+// Known datacenter, cloud host, and VPN provider org name keywords
+// IPInfo free tier returns org field like "AS16509 Amazon.com, Inc."
+const DATACENTER_KEYWORDS = [
+  'amazon', 'aws', 'google cloud', 'microsoft azure', 'azure',
+  'digitalocean', 'linode', 'akamai', 'cloudflare', 'fastly',
+  'hetzner', 'ovh', 'vultr', 'leaseweb', 'rackspace',
+  'ibm cloud', 'oracle cloud', 'alibaba cloud', 'tencent cloud',
+  'scaleway', 'choopa', 'quadranet', 'psychz',
+  'nordvpn', 'expressvpn', 'mullvad', 'private internet access',
+  'protonvpn', 'ipvanish', 'surfshark', 'cyberghost', 'purevpn',
+  'hosting', 'datacenter', 'data center', 'colocation',
+];
+
+function isDatacenterOrg(org) {
+  if (!org) return false;
+  const lower = org.toLowerCase();
+  return DATACENTER_KEYWORDS.some(kw => lower.includes(kw));
+}
+
 function checkIP(ip) {
+  const token = process.env.IPINFO_TOKEN;
+  if (!token) return Promise.resolve(null); // fails open if token not configured
+
   return new Promise((resolve) => {
-    const req = http.request({
-      hostname: 'ip-api.com',
-      path: `/json/${encodeURIComponent(ip)}?fields=status,isp,org,hosting`,
+    const req = https.request({
+      hostname: 'ipinfo.io',
+      path:     `/${encodeURIComponent(ip)}/json?token=${token}`,
       method:   'GET',
       timeout:  2000,
     }, (res) => {
@@ -17,8 +37,8 @@ function checkIP(ip) {
       res.on('end', () => {
         try {
           const d = JSON.parse(raw);
-          if (d.status !== 'success') { resolve(null); return; }
-          resolve({ isp: d.isp || null, org: d.org || null, isDatacenter: d.hosting === true });
+          const org = d.org || null;
+          resolve({ isp: org, org, isDatacenter: isDatacenterOrg(org) });
         } catch { resolve(null); }
       });
     });
