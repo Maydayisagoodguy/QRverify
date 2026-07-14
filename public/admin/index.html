@@ -3,44 +3,42 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Dashboard — QR Verify Admin</title>
+  <title>Admin — First Molecule QR Verify</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --navy-950: #101039;
-      --navy-900: #171747;
-      --navy-800: #242458;
-      --cyan-500: #2BB8CD;
-      --cyan-400: #56CAD8;
-      --cyan-100: #DDF8F5;
-      --mint-100: #DDF5DD;
-      --lime-100: #E6F4C6;
-      --aqua-100: #D8F4F1;
-      --off-white: #FCFCFA;
-      --surface: #F8F9F5;
-      --border: rgba(23,23,71,0.12);
-      --border-strong: rgba(23,23,71,0.22);
-      --text-primary: #171747;
-      --text-secondary: #3F4166;
-      --text-muted: #6E708B;
-      --shadow-soft: 0 12px 30px rgba(17,17,57,0.06);
-      --shadow-float: 0 18px 45px rgba(17,17,57,0.10);
-      --radius-xs: 6px;
-      --radius-sm: 10px;
-      --radius-md: 16px;
-      --radius-lg: 24px;
-      --radius-pill: 999px;
+      --red:          #B81F24;
+      --red-dark:     #9a1a1e;
+      --black:        #111111;
+      --black-deep:   #050505;
+      --white:        #FFFFFF;
+      --gray-100:     #F6F6F6;
+      --gray-fafa:    #FAFAFA;
+      --border:       #EAEAEA;
+      --border-strong:#D0D0D0;
+      --text-primary: #111111;
+      --text-secondary:#555555;
+      --text-muted:   #777777;
+      --text-caption: #999999;
+      --surface:      #FAFAFA;
+      --shadow-soft:  0 4px 24px rgba(0,0,0,0.06);
+      --shadow-float: 0 8px 40px rgba(0,0,0,0.10);
+      --radius-xs:    6px;
+      --radius-sm:    10px;
+      --radius-md:    12px;
+      --radius-lg:    20px;
+      --radius-pill:  999px;
     }
 
     html { height: 100%; }
 
     body {
       font-family: 'Manrope', 'Inter', 'Helvetica Neue', Arial, sans-serif;
-      background: var(--off-white);
+      background: var(--gray-100);
       color: var(--text-primary);
       -webkit-font-smoothing: antialiased;
       min-height: 100vh;
@@ -51,7 +49,7 @@
     .sidebar {
       width: 248px;
       flex-shrink: 0;
-      background: var(--navy-900);
+      background: var(--black);
       min-height: 100vh;
       display: flex;
       flex-direction: column;
@@ -64,23 +62,21 @@
 
     .sidebar-brand {
       display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 0 24px 32px;
+      flex-direction: column;
+      align-items: flex-start;
+      padding: 0 24px 28px;
       border-bottom: 1px solid rgba(255,255,255,0.07);
       margin-bottom: 24px;
     }
 
-    .brand-icon {
-      width: 32px; height: 32px;
-      background: var(--cyan-500);
-      border-radius: 9px;
-      display: flex; align-items: center; justify-content: center;
-      flex-shrink: 0;
+    .sidebar-brand img {
+      height: 36px;
+      width: auto;
+      display: block;
+      margin-bottom: 8px;
     }
-    .brand-icon svg { width: 17px; height: 17px; }
-    .brand-name { font-size: 14px; font-weight: 700; color: #fff; letter-spacing: -0.01em; }
-    .brand-sub  { font-size: 11px; color: rgba(255,255,255,0.4); margin-top: 1px; }
+
+    .brand-sub { font-size: 11px; color: rgba(255,255,255,0.4); font-weight: 500; }
 
     .nav-section {
       padding: 0 12px;
@@ -116,13 +112,13 @@
       letter-spacing: -0.01em;
     }
 
-    .nav-item:hover { color: rgba(255,255,255,0.9); background: rgba(255,255,255,0.07); }
+    .nav-item:hover { color: rgba(255,255,255,0.9); background: rgba(255,255,255,0.08); }
     .nav-item.active {
-      color: var(--navy-950);
-      background: var(--cyan-500);
+      color: #fff;
+      background: var(--red);
       font-weight: 600;
     }
-    .nav-item.active:hover { background: #24A5B8; }
+    .nav-item.active:hover { background: var(--red-dark); }
     .nav-item svg { width: 15px; height: 15px; flex-shrink: 0; }
 
     .nav-badge {
@@ -137,7 +133,7 @@
       display: flex; align-items: center; justify-content: center;
       padding: 0 5px;
     }
-    .nav-item.active .nav-badge { background: rgba(16,16,57,0.3); color: var(--navy-950); }
+    .nav-item.active .nav-badge { background: rgba(255,255,255,0.2); color: #fff; }
 
     .sidebar-footer {
       margin-top: auto;
@@ -154,7 +150,7 @@
       border-radius: var(--radius-sm);
       cursor: pointer;
     }
-    .key-badge svg { width: 12px; height: 12px; flex-shrink: 0; color: var(--cyan-400); }
+    .key-badge svg { width: 12px; height: 12px; flex-shrink: 0; color: var(--red); }
     .key-badge-text { font-size: 11px; color: rgba(255,255,255,0.4); }
     .key-val { font-family: monospace; font-size: 10px; color: rgba(255,255,255,0.6); display: block; }
     .logout-btn {
@@ -175,7 +171,7 @@
       flex-direction: column;
       min-height: 100vh;
       min-width: 0;
-      background: linear-gradient(135deg, #F2F8DF 0%, #EDF9EB 28%, #EEFAF8 62%, #F8F9F5 100%);
+      background: var(--gray-100);
     }
 
     .topbar {
@@ -184,16 +180,17 @@
       align-items: center;
       justify-content: space-between;
       padding: 0 40px;
-      background: rgba(255,255,255,0.85);
-      backdrop-filter: blur(12px);
-      border-bottom: 1px solid rgba(23,23,71,0.06);
+      background: var(--white);
+      border-bottom: 1px solid var(--border);
       position: sticky;
       top: 0;
       z-index: 20;
     }
 
     .topbar-left { display: flex; align-items: center; gap: 16px; }
-    .topbar-title { font-size: 18px; font-weight: 400; color: var(--text-primary); letter-spacing: -0.025em; }
+    .topbar-left img { height: 32px; width: auto; display: block; }
+    .topbar-divider { width: 1px; height: 24px; background: var(--border); }
+    .topbar-title { font-size: 15px; font-weight: 600; color: var(--text-primary); letter-spacing: -0.02em; }
     .topbar-dot { width: 7px; height: 7px; background: #22C55E; border-radius: 50%; box-shadow: 0 0 0 3px rgba(34,197,94,0.2); }
 
     .topbar-right { display: flex; align-items: center; gap: 10px; }
@@ -207,10 +204,10 @@
       transition: all 0.2s; white-space: nowrap;
     }
     .btn svg { width: 14px; height: 14px; }
-    .btn-primary { background: var(--cyan-500); color: var(--navy-950); }
-    .btn-primary:hover { background: #24A5B8; }
+    .btn-primary { background: var(--red); color: #fff; }
+    .btn-primary:hover { background: var(--red-dark); }
     .btn-ghost { background: transparent; color: var(--text-secondary); border: 1px solid var(--border); }
-    .btn-ghost:hover { border-color: var(--border-strong); background: var(--surface); }
+    .btn-ghost:hover { border-color: var(--border-strong); background: var(--gray-fafa); }
     .btn-danger-soft { background: #FEE2E2; color: #991B1B; }
     .btn-danger-soft:hover { background: #FECACA; }
     .btn-sm { height: 32px; padding: 0 12px; font-size: 12px; }
@@ -233,9 +230,18 @@
       margin-bottom: 28px;
     }
 
+    .section-eyebrow {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      color: var(--red);
+      text-transform: uppercase;
+      margin-bottom: 5px;
+    }
+
     .section-title {
-      font-size: 28px;
-      font-weight: 400;
+      font-size: 26px;
+      font-weight: 800;
       letter-spacing: -0.035em;
       color: var(--text-primary);
     }
@@ -249,13 +255,14 @@
     }
 
     .stat-card {
-      background: rgba(255,255,255,0.9);
+      background: var(--white);
       border: 1px solid var(--border);
       border-radius: var(--radius-md);
       padding: 24px 22px;
+      box-shadow: var(--shadow-soft);
       transition: box-shadow 0.2s, transform 0.2s;
     }
-    .stat-card:hover { box-shadow: var(--shadow-soft); transform: translateY(-2px); }
+    .stat-card:hover { box-shadow: 0 8px 32px rgba(0,0,0,0.09); transform: translateY(-2px); }
 
     .stat-label {
       font-size: 11px;
@@ -292,10 +299,11 @@
 
     /* ── Map ──────────────────────────────────────────────── */
     .map-card {
-      background: rgba(255,255,255,0.9);
+      background: var(--white);
       border: 1px solid var(--border);
       border-radius: var(--radius-md);
       overflow: hidden;
+      box-shadow: var(--shadow-soft);
     }
 
     .card-header {
@@ -335,10 +343,11 @@
 
     /* ── Alert feed ───────────────────────────────────────── */
     .alert-feed {
-      background: rgba(255,255,255,0.9);
+      background: var(--white);
       border: 1px solid var(--border);
       border-radius: var(--radius-md);
       overflow: hidden;
+      box-shadow: var(--shadow-soft);
     }
 
     .alert-feed-body {
@@ -355,7 +364,7 @@
       transition: background 0.15s;
     }
     .alert-item:last-child { border-bottom: none; }
-    .alert-item:hover { background: var(--surface); }
+    .alert-item:hover { background: var(--gray-fafa); }
 
     .alert-sev {
       width: 8px; height: 8px; border-radius: 50%;
@@ -374,7 +383,7 @@
     .alert-resolve-btn {
       flex-shrink: 0;
       padding: 3px 10px;
-      background: var(--surface);
+      background: var(--gray-fafa);
       border: 1px solid var(--border);
       border-radius: var(--radius-pill);
       font-size: 11px;
@@ -384,15 +393,16 @@
       font-family: inherit;
       transition: all 0.15s;
     }
-    .alert-resolve-btn:hover { border-color: var(--cyan-500); color: var(--navy-900); }
+    .alert-resolve-btn:hover { border-color: var(--red); color: var(--black); }
 
     /* ── Table card ───────────────────────────────────────── */
     .table-card {
-      background: rgba(255,255,255,0.9);
+      background: var(--white);
       border: 1px solid var(--border);
       border-radius: var(--radius-md);
       overflow: hidden;
       margin-bottom: 20px;
+      box-shadow: var(--shadow-soft);
     }
 
     .table-wrap { overflow-x: auto; }
@@ -409,7 +419,7 @@
       letter-spacing: 0.07em;
       text-transform: uppercase;
       color: var(--text-muted);
-      background: rgba(248,249,245,0.8);
+      background: var(--gray-fafa);
       border-bottom: 1px solid var(--border);
       text-align: left;
       white-space: nowrap;
@@ -424,7 +434,7 @@
     }
 
     tbody tr:last-child td { border-bottom: none; }
-    tbody tr:hover td { background: rgba(248,249,245,0.6); }
+    tbody tr:hover td { background: var(--gray-fafa); }
 
     td.mono { font-family: monospace; font-size: 11px; color: var(--text-muted); }
 
@@ -481,7 +491,7 @@
       outline: none;
       transition: border-color 0.15s;
     }
-    .filter-bar select:focus, .filter-bar input:focus { border-color: var(--cyan-500); }
+    .filter-bar select:focus, .filter-bar input:focus { border-color: var(--red); }
 
     /* ── Batch table actions ──────────────────────────────── */
     .batch-actions { display: flex; gap: 6px; }
@@ -499,7 +509,7 @@
     .spinner {
       width: 20px; height: 20px;
       border: 2px solid var(--border);
-      border-top-color: var(--cyan-500);
+      border-top-color: var(--red);
       border-radius: 50%;
       animation: spin 0.7s linear infinite;
     }
@@ -512,7 +522,7 @@
       display: none;
       position: fixed;
       inset: 0;
-      background: rgba(16,16,57,0.7);
+      background: rgba(0,0,0,0.6);
       backdrop-filter: blur(6px);
       z-index: 100;
       align-items: center;
@@ -535,12 +545,15 @@
     }
 
     .auth-logo {
-      display: flex; align-items: center; gap: 10px;
+      display: flex; align-items: center; gap: 12px;
       margin-bottom: 24px;
     }
-    .auth-logo .brand-icon { background: var(--navy-900); width: 36px; height: 36px; border-radius: 10px; }
+    .auth-logo img { height: 40px; width: auto; }
+    .auth-logo-text {}
+    .auth-logo-name { font-size: 14px; font-weight: 700; color: var(--black); }
+    .auth-logo-sub  { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
 
-    .auth-card h2 { font-size: 20px; font-weight: 600; letter-spacing: -0.02em; margin-bottom: 6px; }
+    .auth-card h2 { font-size: 20px; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 6px; }
     .auth-card p  { font-size: 14px; color: var(--text-muted); margin-bottom: 24px; line-height: 1.55; }
 
     .input-group { margin-bottom: 16px; }
@@ -550,20 +563,20 @@
       border: 1px solid var(--border);
       border-radius: var(--radius-sm);
       font-family: inherit; font-size: 14px;
-      color: var(--text-primary); background: var(--off-white);
+      color: var(--text-primary); background: var(--gray-100);
       outline: none; transition: border-color 0.15s;
     }
-    .input-group input:focus { border-color: var(--cyan-500); }
+    .input-group input:focus { border-color: var(--red); }
     .input-group input::placeholder { color: var(--text-muted); }
 
     .auth-submit {
       width: 100%; height: 46px;
-      background: var(--navy-900); color: #fff;
+      background: var(--red); color: #fff;
       border: none; border-radius: var(--radius-sm);
       font-family: inherit; font-size: 15px; font-weight: 600;
       cursor: pointer; transition: background 0.15s;
     }
-    .auth-submit:hover { background: var(--navy-950); }
+    .auth-submit:hover { background: var(--red-dark); }
 
     /* ── Toast ────────────────────────────────────────────── */
     .toast-wrap {
@@ -576,7 +589,7 @@
     .toast {
       display: flex; align-items: center; gap: 10px;
       padding: 12px 16px;
-      background: var(--navy-900); color: #fff;
+      background: var(--black); color: #fff;
       border-radius: var(--radius-sm);
       font-size: 13px; font-weight: 500;
       box-shadow: var(--shadow-float);
@@ -608,12 +621,10 @@
   <div class="auth-overlay" id="auth-overlay">
     <div class="auth-card">
       <div class="auth-logo">
-        <div class="brand-icon">
-          <svg viewBox="0 0 18 18" fill="none"><rect x="1" y="1" width="6" height="6" rx="1.5" stroke="white" stroke-width="1.5"/><rect x="11" y="1" width="6" height="6" rx="1.5" stroke="white" stroke-width="1.5"/><rect x="1" y="11" width="6" height="6" rx="1.5" stroke="white" stroke-width="1.5"/><rect x="11" y="11" width="2" height="2" fill="white"/><rect x="15" y="11" width="2" height="2" fill="white"/><rect x="11" y="15" width="2" height="2" fill="white"/><rect x="15" y="15" width="2" height="2" fill="white"/></svg>
-        </div>
-        <div>
-          <div class="brand-name" style="color:var(--navy-900)">QR Verify</div>
-          <div class="brand-sub" style="color:var(--text-muted)">Admin Console</div>
+        <img src="/logo.png" alt="First Molecule" />
+        <div class="auth-logo-text">
+          <div class="auth-logo-name">First Molecule</div>
+          <div class="auth-logo-sub">Admin Console</div>
         </div>
       </div>
       <h2>Sign in</h2>
@@ -629,13 +640,8 @@
   <!-- Sidebar -->
   <aside class="sidebar">
     <div class="sidebar-brand">
-      <div class="brand-icon">
-        <svg viewBox="0 0 18 18" fill="none"><rect x="1" y="1" width="6" height="6" rx="1.5" stroke="white" stroke-width="1.5"/><rect x="11" y="1" width="6" height="6" rx="1.5" stroke="white" stroke-width="1.5"/><rect x="1" y="11" width="6" height="6" rx="1.5" stroke="white" stroke-width="1.5"/><rect x="11" y="11" width="2" height="2" fill="white"/><rect x="15" y="11" width="2" height="2" fill="white"/><rect x="11" y="15" width="2" height="2" fill="white"/><rect x="15" y="15" width="2" height="2" fill="white"/></svg>
-      </div>
-      <div>
-        <div class="brand-name">QR Verify</div>
-        <div class="brand-sub">Admin Console</div>
-      </div>
+      <img src="/logo.png" alt="First Molecule" />
+      <div class="brand-sub">Admin Console</div>
     </div>
 
     <div class="nav-section">
@@ -682,6 +688,8 @@
   <div class="main">
     <div class="topbar">
       <div class="topbar-left">
+        <img src="/logo.png" alt="First Molecule" />
+        <div class="topbar-divider"></div>
         <div class="topbar-dot"></div>
         <span class="topbar-title" id="topbar-title">Dashboard</span>
       </div>
@@ -701,6 +709,12 @@
 
       <!-- ── Dashboard ───────────────────────────────────────── -->
       <section class="section active" id="section-dashboard">
+        <div class="section-header" style="margin-bottom:24px;">
+          <div>
+            <div class="section-eyebrow">Overview</div>
+            <span class="section-title">Dashboard</span>
+          </div>
+        </div>
         <div class="stats-grid">
           <div class="stat-card">
             <div class="stat-label">Total Scans</div>
@@ -784,7 +798,10 @@
       <!-- ── Batches ─────────────────────────────────────────── -->
       <section class="section" id="section-batches">
         <div class="section-header">
-          <span class="section-title">Batches</span>
+          <div>
+            <div class="section-eyebrow">Manage</div>
+            <span class="section-title">Batches</span>
+          </div>
           <a href="/admin/upload" class="btn btn-primary btn-sm">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
             New Upload
@@ -814,7 +831,10 @@
       <!-- ── Scans ───────────────────────────────────────────── -->
       <section class="section" id="section-scans">
         <div class="section-header">
-          <span class="section-title">Scan Logs</span>
+          <div>
+            <div class="section-eyebrow">Manage</div>
+            <span class="section-title">Scan Logs</span>
+          </div>
         </div>
         <div class="filter-bar">
           <select id="scan-filter-result" onchange="loadScans()">
@@ -854,7 +874,10 @@
       <!-- ── Alerts ──────────────────────────────────────────── -->
       <section class="section" id="section-alerts">
         <div class="section-header">
-          <span class="section-title">Alerts</span>
+          <div>
+            <div class="section-eyebrow">Manage</div>
+            <span class="section-title">Alerts</span>
+          </div>
           <div style="display:flex;gap:8px;">
             <select id="alert-filter-sev" onchange="loadAlerts()" style="height:36px;padding:0 12px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;font-size:13px;outline:none;">
               <option value="">All severities</option>

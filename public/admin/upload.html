@@ -3,39 +3,40 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Upload Products — QR Verify Admin</title>
+  <title>Upload Products — First Molecule QR Verify</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --navy-950: #101039;
-      --navy-900: #171747;
-      --navy-800: #242458;
-      --cyan-500: #2BB8CD;
-      --cyan-100: #DDF8F5;
-      --mint-100: #DDF5DD;
-      --off-white: #FCFCFA;
-      --surface: #F8F9F5;
-      --border: rgba(23,23,71,0.12);
-      --border-strong: rgba(23,23,71,0.22);
-      --text-primary: #171747;
-      --text-secondary: #3F4166;
-      --text-muted: #6E708B;
-      --shadow-soft: 0 12px 30px rgba(17,17,57,0.06);
-      --shadow-float: 0 18px 45px rgba(17,17,57,0.10);
-      --radius-sm: 10px;
-      --radius-md: 16px;
-      --radius-lg: 24px;
-      --radius-pill: 999px;
+      --red:          #B81F24;
+      --red-dark:     #9a1a1e;
+      --black:        #111111;
+      --black-deep:   #050505;
+      --white:        #FFFFFF;
+      --gray-100:     #F6F6F6;
+      --gray-fafa:    #FAFAFA;
+      --border:       #EAEAEA;
+      --border-strong:#D0D0D0;
+      --text-primary: #111111;
+      --text-secondary:#555555;
+      --text-muted:   #777777;
+      --text-caption: #999999;
+      --surface:      #FAFAFA;
+      --shadow-soft:  0 4px 24px rgba(0,0,0,0.06);
+      --shadow-float: 0 8px 40px rgba(0,0,0,0.10);
+      --radius-sm:    10px;
+      --radius-md:    12px;
+      --radius-lg:    20px;
+      --radius-pill:  999px;
     }
 
     html { height: 100%; }
 
     body {
       font-family: 'Manrope', 'Inter', 'Helvetica Neue', Arial, sans-serif;
-      background: var(--off-white);
+      background: var(--gray-100);
       color: var(--text-primary);
       -webkit-font-smoothing: antialiased;
       min-height: 100vh;
@@ -46,7 +47,7 @@
     .sidebar {
       width: 248px;
       flex-shrink: 0;
-      background: var(--navy-900);
+      background: var(--black);
       min-height: 100vh;
       display: flex;
       flex-direction: column;
@@ -59,25 +60,21 @@
 
     .sidebar-brand {
       display: flex;
-      align-items: center;
-      gap: 10px;
+      flex-direction: column;
+      align-items: flex-start;
       padding: 0 20px 28px;
       border-bottom: 1px solid rgba(255,255,255,0.08);
       margin-bottom: 20px;
     }
 
-    .brand-icon {
-      width: 32px; height: 32px;
-      background: var(--cyan-500);
-      border-radius: 9px;
-      display: flex; align-items: center; justify-content: center;
-      flex-shrink: 0;
+    .sidebar-brand img {
+      height: 36px;
+      width: auto;
+      display: block;
+      margin-bottom: 8px;
     }
-    .brand-icon svg { width: 17px; height: 17px; }
 
-    .brand-text { line-height: 1.2; }
-    .brand-name { font-size: 14px; font-weight: 700; color: #fff; letter-spacing: -0.01em; }
-    .brand-sub  { font-size: 11px; color: rgba(255,255,255,0.4); }
+    .brand-sub { font-size: 11px; color: rgba(255,255,255,0.4); font-weight: 500; }
 
     .nav-item {
       display: flex;
@@ -93,13 +90,13 @@
       position: relative;
     }
 
-    .nav-item:hover { color: #fff; background: rgba(255,255,255,0.06); }
+    .nav-item:hover { color: #fff; background: rgba(255,255,255,0.08); }
     .nav-item.active {
-      color: var(--navy-950);
-      background: var(--cyan-500);
+      color: #fff;
+      background: var(--red);
       font-weight: 600;
     }
-    .nav-item.active:hover { background: #24A5B8; }
+    .nav-item.active:hover { background: var(--red-dark); }
 
     .nav-item svg { width: 16px; height: 16px; flex-shrink: 0; }
 
@@ -120,7 +117,7 @@
       color: rgba(255,255,255,0.5);
     }
 
-    .key-badge svg { width: 12px; height: 12px; flex-shrink: 0; color: var(--cyan-500); }
+    .key-badge svg { width: 12px; height: 12px; flex-shrink: 0; color: var(--red); }
     .key-val { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: monospace; font-size: 10px; }
 
     /* ── Main ─────────────────────────────────────────────── */
@@ -129,6 +126,7 @@
       display: flex;
       flex-direction: column;
       min-height: 100vh;
+      background: var(--gray-100);
     }
 
     .topbar {
@@ -137,15 +135,17 @@
       align-items: center;
       justify-content: space-between;
       padding: 0 40px;
-      background: rgba(255,255,255,0.85);
-      backdrop-filter: blur(12px);
-      border-bottom: 1px solid rgba(23,23,71,0.06);
+      background: var(--white);
+      border-bottom: 1px solid var(--border);
       position: sticky;
       top: 0;
       z-index: 10;
     }
 
-    .topbar-title { font-size: 18px; font-weight: 400; color: var(--text-primary); letter-spacing: -0.025em; }
+    .topbar-left { display: flex; align-items: center; gap: 16px; }
+    .topbar-left img { height: 32px; width: auto; display: block; }
+    .topbar-divider { width: 1px; height: 24px; background: var(--border); }
+    .topbar-title { font-size: 15px; font-weight: 600; color: var(--text-primary); letter-spacing: -0.02em; }
 
     .btn {
       display: inline-flex; align-items: center; gap: 8px;
@@ -156,12 +156,12 @@
       transition: all 0.2s;
     }
     .btn svg { width: 14px; height: 14px; }
-    .btn-primary { background: var(--cyan-500); color: var(--navy-950); }
-    .btn-primary:hover { background: #24A5B8; transform: translateY(-1px); }
+    .btn-primary { background: var(--red); color: #fff; }
+    .btn-primary:hover { background: var(--red-dark); transform: translateY(-1px); }
     .btn-ghost { background: transparent; color: var(--text-secondary); border: 1px solid var(--border); }
-    .btn-ghost:hover { border-color: var(--border-strong); background: var(--surface); }
-    .btn-navy { background: var(--navy-900); color: #fff; }
-    .btn-navy:hover { background: var(--navy-950); }
+    .btn-ghost:hover { border-color: var(--border-strong); background: var(--gray-fafa); }
+    .btn-navy { background: var(--black); color: #fff; }
+    .btn-navy:hover { background: var(--black-deep); }
     .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
     /* ── Content ──────────────────────────────────────────── */
@@ -169,15 +169,23 @@
       flex: 1;
       padding: 48px 40px;
       max-width: 800px;
-      background: linear-gradient(135deg, #F2F8DF 0%, #EDF9EB 28%, #EEFAF8 62%, #F8F9F5 100%);
       min-height: 100vh;
     }
 
+    .section-eyebrow {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      color: var(--red);
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+
     .page-title {
-      font-size: 34px;
-      font-weight: 300;
-      letter-spacing: -0.04em;
-      color: var(--text-primary);
+      font-size: 32px;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      color: var(--black);
       margin-bottom: 8px;
       line-height: 1.1;
     }
@@ -186,24 +194,25 @@
       font-size: 15px;
       color: var(--text-muted);
       margin-bottom: 40px;
-      line-height: 1.6;
+      line-height: 1.8;
     }
 
     /* ── Drop zone ────────────────────────────────────────── */
     .dropzone {
-      border: 1.5px dashed rgba(23,23,71,0.2);
+      border: 2px dashed var(--border);
       border-radius: var(--radius-lg);
       padding: 72px 40px;
       text-align: center;
       cursor: pointer;
       transition: all 0.2s;
-      background: rgba(255,255,255,0.85);
+      background: var(--white);
       position: relative;
+      box-shadow: var(--shadow-soft);
     }
 
     .dropzone:hover, .dropzone.drag-over {
-      border-color: var(--cyan-500);
-      background: rgba(221,248,245,0.5);
+      border-color: var(--red);
+      background: #fff8f8;
     }
 
     .dropzone input[type="file"] {
@@ -217,10 +226,11 @@
 
     .dz-icon {
       width: 56px; height: 56px;
-      background: var(--surface);
+      background: var(--gray-fafa);
       border-radius: var(--radius-md);
       display: flex; align-items: center; justify-content: center;
       margin: 0 auto 20px;
+      border: 1px solid var(--border);
     }
     .dz-icon svg { width: 26px; height: 26px; color: var(--text-muted); }
 
@@ -229,7 +239,7 @@
     .dz-types { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; }
     .dz-tag {
       padding: 3px 10px;
-      background: var(--surface);
+      background: var(--gray-fafa);
       border: 1px solid var(--border);
       border-radius: var(--radius-pill);
       font-size: 11px;
@@ -240,21 +250,21 @@
     /* ── File selected state ──────────────────────────────── */
     .file-selected {
       display: none;
-      background: #fff;
+      background: var(--white);
       border: 1px solid var(--border);
       border-radius: var(--radius-md);
       padding: 16px 20px;
-      display: none;
       align-items: center;
       gap: 14px;
       margin-top: 16px;
+      box-shadow: var(--shadow-soft);
     }
 
     .file-selected.show { display: flex; }
 
     .file-icon {
       width: 40px; height: 40px;
-      background: var(--mint-100);
+      background: #ECFDF5;
       border-radius: var(--radius-sm);
       display: flex; align-items: center; justify-content: center;
       flex-shrink: 0;
@@ -267,20 +277,20 @@
 
     /* ── Column reference card ────────────────────────────── */
     .ref-card {
-      background: #fff;
+      background: var(--white);
       border: 1px solid var(--border);
       border-radius: var(--radius-md);
       padding: 24px;
       margin-top: 28px;
+      box-shadow: var(--shadow-soft);
     }
 
     .ref-card-title {
-      font-size: 13px; font-weight: 700;
-      color: var(--text-primary);
-      letter-spacing: 0.02em;
-      margin-bottom: 16px;
+      font-size: 11px; font-weight: 700;
+      color: var(--text-muted);
       text-transform: uppercase;
-      letter-spacing: 0.06em;
+      letter-spacing: 0.08em;
+      margin-bottom: 16px;
     }
 
     .col-table { width: 100%; border-collapse: collapse; }
@@ -300,13 +310,13 @@
       border-bottom: 1px solid var(--border);
     }
     .col-table tr:last-child td { border-bottom: none; }
-    .col-table td:first-child { font-family: monospace; font-size: 12px; color: var(--navy-800); padding-right: 16px; white-space: nowrap; }
+    .col-table td:first-child { font-family: monospace; font-size: 12px; color: var(--black); padding-right: 16px; white-space: nowrap; font-weight: 600; }
     .col-table td:last-child { padding-left: 12px; }
 
     .required-dot {
       display: inline-block;
       width: 6px; height: 6px;
-      background: #DC2626;
+      background: var(--red);
       border-radius: 50%;
       vertical-align: middle;
       margin-right: 4px;
@@ -325,7 +335,7 @@
     }
     .progress-bar {
       height: 100%;
-      background: var(--cyan-500);
+      background: var(--red);
       border-radius: var(--radius-pill);
       transition: width 0.3s;
       width: 0%;
@@ -383,7 +393,7 @@
       display: none;
       position: fixed;
       inset: 0;
-      background: rgba(16,16,57,0.7);
+      background: rgba(0,0,0,0.6);
       backdrop-filter: blur(6px);
       z-index: 50;
       align-items: center;
@@ -399,7 +409,16 @@
       max-width: 380px;
       box-shadow: var(--shadow-float);
     }
-    .auth-card h2 { font-size: 20px; font-weight: 600; letter-spacing: -0.02em; margin-bottom: 6px; }
+
+    .auth-logo {
+      display: flex; align-items: center; gap: 12px;
+      margin-bottom: 24px;
+    }
+    .auth-logo img { height: 40px; width: auto; }
+    .auth-logo-name { font-size: 14px; font-weight: 700; color: var(--black); }
+    .auth-logo-sub  { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
+
+    .auth-card h2 { font-size: 20px; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 6px; }
     .auth-card p  { font-size: 14px; color: var(--text-muted); margin-bottom: 24px; line-height: 1.55; }
 
     .input-group { margin-bottom: 16px; }
@@ -413,11 +432,11 @@
       font-family: inherit;
       font-size: 14px;
       color: var(--text-primary);
-      background: var(--off-white);
+      background: var(--gray-100);
       outline: none;
       transition: border-color 0.15s;
     }
-    .input-group input:focus { border-color: var(--cyan-500); }
+    .input-group input:focus { border-color: var(--red); }
     .input-group input::placeholder { color: var(--text-muted); }
 
     @media (max-width: 768px) {
@@ -432,6 +451,13 @@
   <!-- Auth overlay -->
   <div class="auth-overlay" id="auth-overlay">
     <div class="auth-card">
+      <div class="auth-logo">
+        <img src="/logo.png" alt="First Molecule" />
+        <div>
+          <div class="auth-logo-name">First Molecule</div>
+          <div class="auth-logo-sub">Admin Console</div>
+        </div>
+      </div>
       <h2>Admin Access</h2>
       <p>Enter your admin API key to access the QR Verify dashboard.</p>
       <div class="input-group">
@@ -448,13 +474,8 @@
   <!-- Sidebar -->
   <aside class="sidebar">
     <div class="sidebar-brand">
-      <div class="brand-icon">
-        <svg viewBox="0 0 18 18" fill="none"><rect x="1" y="1" width="6" height="6" rx="1.5" stroke="white" stroke-width="1.5"/><rect x="11" y="1" width="6" height="6" rx="1.5" stroke="white" stroke-width="1.5"/><rect x="1" y="11" width="6" height="6" rx="1.5" stroke="white" stroke-width="1.5"/><rect x="11" y="11" width="2" height="2" fill="white"/><rect x="15" y="11" width="2" height="2" fill="white"/><rect x="11" y="15" width="2" height="2" fill="white"/><rect x="15" y="15" width="2" height="2" fill="white"/></svg>
-      </div>
-      <div class="brand-text">
-        <div class="brand-name">QR Verify</div>
-        <div class="brand-sub">Admin Console</div>
-      </div>
+      <img src="/logo.png" alt="First Molecule" />
+      <div class="brand-sub">Admin Console</div>
     </div>
 
     <nav>
@@ -487,7 +508,11 @@
   <!-- Main -->
   <div class="main">
     <div class="topbar">
-      <span class="topbar-title">Upload Products</span>
+      <div class="topbar-left">
+        <img src="/logo.png" alt="First Molecule" />
+        <div class="topbar-divider"></div>
+        <span class="topbar-title">Upload Products</span>
+      </div>
       <a href="/admin/" class="btn btn-ghost">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M5 12l7 7M5 12l7-7"/></svg>
         Back to Dashboard
@@ -495,6 +520,7 @@
     </div>
 
     <div class="content">
+      <div class="section-eyebrow">Upload</div>
       <h1 class="page-title">Upload Products</h1>
       <p class="page-sub">Upload an Excel file to generate QR codes for each product unit. After processing you can download the ZIP of QR PNGs for your label printer.</p>
 
