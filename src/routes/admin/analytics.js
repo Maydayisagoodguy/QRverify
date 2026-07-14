@@ -14,4 +14,8 @@ module.exports = async function analyticsRoutes(fastify) {
     const { limit = '500' } = request.query;
     return db.getMapData(Math.min(parseInt(limit, 10) || 500, 2000));
   });
+
+  fastify.get('/analytics/geo', { preHandler: [adminRateLimit, adminAuth] }, async () => {
+    return db.getGeoSummary();
+  });
 };

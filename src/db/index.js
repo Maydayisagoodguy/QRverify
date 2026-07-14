@@ -267,6 +267,23 @@ async function getAnalyticsSummary() {
   };
 }
 
+async function getGeoSummary() {
+  const { data, error } = await db
+    .from('scan_logs')
+    .select('country, result')
+    .not('country', 'is', null);
+  if (error) throw error;
+
+  const map = {};
+  for (const row of (data || [])) {
+    const c = row.country;
+    if (!map[c]) map[c] = { country: c, verified: 0, warning: 0, fake: 0, inactive: 0, total: 0 };
+    map[c][row.result] = (map[c][row.result] || 0) + 1;
+    map[c].total++;
+  }
+  return Object.values(map).sort((a, b) => b.total - a.total);
+}
+
 async function getMapData(limit = 500) {
   const { data, error } = await db
     .from('scan_logs')
@@ -319,5 +336,6 @@ module.exports = {
   logAuditAction,
   // Analytics
   getAnalyticsSummary,
+  getGeoSummary,
   getMapData,
 };
