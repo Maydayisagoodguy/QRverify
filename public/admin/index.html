@@ -388,12 +388,13 @@
     .map-card.map-fullscreen {
       position: fixed;
       inset: 0;
-      z-index: 50;
+      z-index: 1000;
       border-radius: 0;
       display: flex;
       flex-direction: column;
     }
-    .map-card.map-fullscreen #scan-map { flex: 1; height: auto !important; }
+    .map-card.map-fullscreen #scan-map { flex: 1; min-height: 0; height: auto !important; }
+    .map-card.map-fullscreen .map-filter-bar { flex-shrink: 0; }
     .map-card.map-fullscreen .map-legend { flex-shrink: 0; }
 
     /* ── Alert feed ───────────────────────────────────────── */
@@ -1360,20 +1361,20 @@
 
     function toggleMapFullscreen() {
       const card = document.querySelector('.map-card');
-      const mapEl = document.getElementById('scan-map');
-      const btn   = document.getElementById('map-fs-btn');
+      const btn  = document.getElementById('map-fs-btn');
       mapFullscreen = !mapFullscreen;
 
       if (mapFullscreen) {
         card.classList.add('map-fullscreen');
-        mapEl.style.height = (window.innerHeight - 148) + 'px';
+        document.body.style.overflow = 'hidden';
         btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;"><path d="M8 3v3a2 2 0 01-2 2H3"/><path d="M21 8h-3a2 2 0 01-2-2V3"/><path d="M3 16h3a2 2 0 012 2v3"/><path d="M16 21v-3a2 2 0 012-2h3"/></svg> Exit`;
       } else {
         card.classList.remove('map-fullscreen');
-        mapEl.style.height = '400px';
+        document.body.style.overflow = '';
         btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;"><path d="M8 3H5a2 2 0 00-2 2v3"/><path d="M21 8V5a2 2 0 00-2-2h-3"/><path d="M3 16v3a2 2 0 002 2h3"/><path d="M16 21h3a2 2 0 002-2v-3"/></svg> Fullscreen`;
       }
-      mapInstance.invalidateSize();
+      // Delay so CSS renders before Leaflet recalculates map size
+      setTimeout(() => { if (mapInstance) mapInstance.invalidateSize(); }, 120);
     }
 
     // ── Batches ────────────────────────────────────────────────────
