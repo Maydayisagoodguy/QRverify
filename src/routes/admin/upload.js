@@ -79,7 +79,7 @@ module.exports = async function uploadRoutes(fastify) {
     };
   });
 
-  // GET /admin/batches/:code/export — stream ZIP of QR PNGs
+  // GET /admin/batches/:code/export — build ZIP in memory then send
   fastify.get('/batches/:code/export', {
     preHandler: [adminRateLimit, adminAuth],
   }, async (request, reply) => {
@@ -90,7 +90,11 @@ module.exports = async function uploadRoutes(fastify) {
       return reply.code(404).send({ error: 'Batch not found or empty', code: 'NOT_FOUND' });
     }
 
-    await buildZip(products, reply);
+    const buffer = await buildZip(products);
+    return reply
+      .type('application/zip')
+      .header('Content-Disposition', `attachment; filename="${code}-qrcodes.zip"`)
+      .send(buffer);
   });
 
 };

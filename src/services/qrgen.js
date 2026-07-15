@@ -94,18 +94,11 @@ async function processExcel(fileBuffer) {
   return { batches: batchMap, products, warnings };
 }
 
-async function buildZip(products, reply) {
+async function buildZip(products) {
   const archive = archiver('zip', { zlib: { level: 6 } });
+  const chunks  = [];
 
-  // Hijack tells Fastify not to touch the response — we own the raw socket from here
-  reply.hijack();
-  reply.raw.setHeader('Content-Type', 'application/zip');
-  reply.raw.setHeader(
-    'Content-Disposition',
-    `attachment; filename="${products[0]?.batch_code || 'batch'}-qrcodes.zip"`
-  );
-
-  archive.pipe(reply.raw);
+  archive.on('data', chunk => chunks.push(chunk));
 
   // CSV manifest
   const csvLines = ['serial,qr_url,batch_code,product_name'];
@@ -115,7 +108,7 @@ async function buildZip(products, reply) {
   }
   archive.append(csvLines.join('\n'), { name: 'serials.csv' });
 
-  // QR PNGs (batched to avoid OOM on 5000+ codes)
+  // QR PNGs (batched to avoid OOM on large batches)
   const BATCH = 50;
   for (let i = 0; i < products.length; i += BATCH) {
     const chunk = products.slice(i, i + BATCH);
@@ -127,7 +120,13 @@ async function buildZip(products, reply) {
     });
   }
 
-  await archive.finalize();
+  await new Promise((resolve, reject) => {
+    archive.on('finish', resolve);
+    archive.on('error', reject);
+    archive.finalize();
+  });
+
+  return Buffer.concat(chunks);
 }
 
 module.exports = { processExcel, buildZip, generateHMAC, verifyHMAC, buildURL };
