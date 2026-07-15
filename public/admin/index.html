@@ -7,7 +7,6 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <script>(function(){var t=localStorage.getItem('fm-theme');if(t==='dark'||(!t&&window.matchMedia('(prefers-color-scheme: dark)').matches)){document.documentElement.classList.add('dark');}})()</script>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
@@ -39,21 +38,6 @@
       --radius-pill:   999px;
     }
 
-    html.dark {
-      --white:         #141414;
-      --surface:       #141414;
-      --bg:            #0C0C0C;
-      --gray-100:      #0C0C0C;
-      --gray-fafa:     #1C1C1C;
-      --border:        #272727;
-      --border-strong: #333333;
-      --text-primary:  #ECECEC;
-      --text-secondary:#8A8A8A;
-      --text-muted:    #555555;
-      --text-caption:  #555555;
-      --shadow-soft:   0 1px 3px rgba(0,0,0,0.4), 0 1px 2px rgba(0,0,0,0.3);
-      --shadow-float:  0 10px 40px rgba(0,0,0,0.6);
-    }
 
     html { height: 100%; }
 
@@ -185,18 +169,6 @@
     .logout-btn:hover { color: rgba(255,255,255,0.7); }
     .logout-btn svg { width: 13px; height: 13px; }
 
-    html.dark .sidebar { background: #080808; border-right: 1px solid #1A1A1A; }
-    html.dark .sidebar-brand { border-bottom-color: rgba(255,255,255,0.05); }
-    html.dark .filter-bar select,
-    html.dark .filter-bar input { background: var(--surface); color: var(--text-primary); }
-    html.dark .auth-card { background: #1C1C1C; }
-    html.dark .auth-logo-name { color: var(--text-primary); }
-    html.dark .input-group input { background: #0C0C0C; color: var(--text-primary); }
-    html.dark .btn-ghost { color: var(--text-secondary); }
-    html.dark .btn-danger-soft { background: rgba(153,27,27,0.2); color: #FCA5A5; }
-    html.dark .marker-cluster-small div,
-    html.dark .marker-cluster-medium div,
-    html.dark .marker-cluster-large div { font-family: 'Inter', sans-serif !important; }
 
     /* ── Main ─────────────────────────────────────────────── */
     .main {
@@ -792,7 +764,6 @@
         <span class="topbar-title" id="topbar-title">Dashboard</span>
       </div>
       <div class="topbar-right">
-        <button class="btn btn-ghost btn-sm" id="theme-btn" onclick="toggleTheme()"></button>
         <button class="btn btn-ghost btn-sm" onclick="refreshData()">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
           Refresh
@@ -851,13 +822,7 @@
           <div class="map-card">
             <div class="card-header">
               <span class="card-title">Scan Map</span>
-              <div style="display:flex;align-items:center;gap:8px;">
-                <span class="card-meta" id="map-count-label">Last 500 scans</span>
-                <button class="btn btn-ghost btn-sm" id="map-fs-btn" onclick="toggleMapFullscreen()">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 00-2 2v3"/><path d="M21 8V5a2 2 0 00-2-2h-3"/><path d="M3 16v3a2 2 0 002 2h3"/><path d="M16 21h3a2 2 0 002-2v-3"/></svg>
-                  Fullscreen
-                </button>
-              </div>
+              <span class="card-meta" id="map-count-label">Last 500 scans</span>
             </div>
             <div class="map-filter-bar">
               <button class="map-filter-btn active" data-filter="all">All</button>
@@ -1108,37 +1073,10 @@
     let clusterLayer   = null;
     let mapData        = [];
     let currentMapFilter = 'all';
-    let mapFullscreen  = false;
-    let fsOriginalParent = null;
-    let fsOriginalNextSibling = null;
+    let selectedCountry = null;
     let activeSection  = 'dashboard';
     const loadedSections = new Set();
 
-    // ── Theme ──────────────────────────────────────────────────────
-    function toggleTheme() {
-      const isDark = document.documentElement.classList.contains('dark');
-      if (isDark) {
-        document.documentElement.classList.remove('dark');
-        localStorage.setItem('fm-theme', 'light');
-        renderThemeBtn('light');
-      } else {
-        document.documentElement.classList.add('dark');
-        localStorage.setItem('fm-theme', 'dark');
-        renderThemeBtn('dark');
-      }
-    }
-    function renderThemeBtn(theme) {
-      const btn = document.getElementById('theme-btn');
-      if (!btn) return;
-      if (theme === 'dark') {
-        btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg> Light`;
-      } else {
-        btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg> Dark`;
-      }
-    }
-
-    // Render theme button immediately on load
-    renderThemeBtn(document.documentElement.classList.contains('dark') ? 'dark' : 'light');
 
     // ── Auth ───────────────────────────────────────────────────────
     function init() {
@@ -1338,7 +1276,7 @@
           const fraudCount = (r.warning || 0) + (r.fake || 0);
           const fraudRate  = r.total > 0 ? (fraudCount / r.total * 100).toFixed(1) : '0.0';
           const rateColor  = fraudRate < 5 ? '#059669' : fraudRate < 15 ? '#D97706' : '#DC2626';
-          return `<tr>
+          return `<tr data-country="${esc(r.country)}" onclick="selectGeoCountry('${esc(r.country)}')" style="cursor:pointer;">
             <td style="font-weight:600;color:var(--text-primary);">${esc(r.country)}</td>
             <td><span style="color:#059669;font-weight:600;">${fmt(r.verified || 0)}</span></td>
             <td><span style="color:#D97706;font-weight:600;">${fmt(r.warning || 0)}</span></td>
@@ -1452,10 +1390,11 @@
         },
       });
 
-      const points = mapData.filter(d => {
+      let points = mapData.filter(d => {
         if (!d.lat || !d.lng) return false;
         return filter === 'all' || d.result === filter;
       });
+      if (selectedCountry) points = points.filter(d => d.country === selectedCountry);
 
       // Update count label
       const label = document.getElementById('map-count-label');
@@ -1499,44 +1438,34 @@
       }
     }
 
-    function toggleMapFullscreen() {
-      const card = document.querySelector('.map-card');
-      const mapEl = document.getElementById('scan-map');
-      const btn   = document.getElementById('map-fs-btn');
-      mapFullscreen = !mapFullscreen;
-
-      if (mapFullscreen) {
-        // Remember where the card lives so we can put it back
-        fsOriginalParent = card.parentNode;
-        fsOriginalNextSibling = card.nextSibling;
-
-        // Move card to body — escapes any overflow:auto ancestor
-        document.body.appendChild(card);
-
-        // Apply fullscreen styles inline (class alone can't beat overflow containment)
-        Object.assign(card.style, {
-          position: 'fixed', inset: '0', zIndex: '9999',
-          borderRadius: '0', margin: '0', width: '100%', height: '100%',
-          display: 'flex', flexDirection: 'column',
-        });
-        mapEl.style.cssText = 'flex:1;min-height:0;height:auto;';
-        document.body.style.overflow = 'hidden';
-
-        btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;"><path d="M8 3v3a2 2 0 01-2 2H3"/><path d="M21 8h-3a2 2 0 01-2-2V3"/><path d="M3 16h3a2 2 0 012 2v3"/><path d="M16 21v-3a2 2 0 012-2h3"/></svg> Exit`;
+    function selectGeoCountry(country) {
+      if (selectedCountry === country) {
+        selectedCountry = null;
       } else {
-        // Restore card to its original position in the DOM
-        if (fsOriginalParent) {
-          fsOriginalParent.insertBefore(card, fsOriginalNextSibling);
-        }
-
-        // Clear all inline styles
-        card.style.cssText = '';
-        mapEl.style.cssText = 'height:400px;';
-        document.body.style.overflow = '';
-
-        btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;"><path d="M8 3H5a2 2 0 00-2 2v3"/><path d="M21 8V5a2 2 0 00-2-2h-3"/><path d="M3 16v3a2 2 0 002 2h3"/><path d="M16 21h3a2 2 0 002-2v-3"/></svg> Fullscreen`;
+        selectedCountry = country;
       }
-      setTimeout(() => { if (mapInstance) mapInstance.invalidateSize(); }, 150);
+      // Highlight active row
+      document.querySelectorAll('#geo-body tr').forEach(tr => {
+        tr.style.background = tr.dataset.country === selectedCountry ? 'rgba(99,102,241,0.08)' : '';
+      });
+      // Update label
+      const label = document.getElementById('map-count-label');
+      if (label) label.textContent = selectedCountry ? `Filtered: ${selectedCountry}` : 'Last 500 scans';
+      renderMapMarkers(currentMapFilter);
+      // Fly to country bounds if filtering
+      if (selectedCountry && mapInstance) {
+        const pts = mapData.filter(d => d.country === selectedCountry && d.lat && d.lng);
+        if (pts.length > 0) {
+          const bounds = L.latLngBounds(pts.map(d => [d.lat, d.lng]));
+          mapInstance.fitBounds(bounds, { padding: [60, 60], maxZoom: 8 });
+        }
+      } else if (!selectedCountry && mapInstance) {
+        const pts = mapData.filter(d => d.lat && d.lng);
+        if (pts.length > 0) {
+          const bounds = L.latLngBounds(pts.map(d => [d.lat, d.lng]));
+          mapInstance.fitBounds(bounds, { padding: [40, 40], maxZoom: 8 });
+        }
+      }
     }
 
     // ── Batches ────────────────────────────────────────────────────
