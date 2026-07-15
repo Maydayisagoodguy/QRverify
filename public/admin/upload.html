@@ -724,16 +724,28 @@
     }
 
     async function downloadZip(batchCode) {
-      const res = await fetch(`/admin/batches/${encodeURIComponent(batchCode)}/export`, {
-        headers: { 'x-admin-key': adminKey },
-      });
-      if (!res.ok) { alert('Export failed. Please try again.'); return; }
-      const blob = await res.blob();
-      const url  = URL.createObjectURL(blob);
-      const a    = document.createElement('a');
-      a.href = url; a.download = `${batchCode}-qrcodes.zip`;
-      a.click();
-      URL.revokeObjectURL(url);
+      try {
+        const res = await fetch(`/admin/batches/${encodeURIComponent(batchCode)}/export`, {
+          headers: { 'x-admin-key': adminKey },
+        });
+        if (!res.ok) {
+          const msg = await res.text().catch(() => res.status);
+          alert(`Export failed (${res.status}): ${msg}`);
+          return;
+        }
+        const blob = await res.blob();
+        if (!blob.size) { alert('Export failed: empty response from server'); return; }
+        const url = URL.createObjectURL(blob);
+        const a   = document.createElement('a');
+        a.href = url;
+        a.download = `${batchCode}-qrcodes.zip`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 2000);
+      } catch (err) {
+        alert(`Download error: ${err.message}`);
+      }
     }
 
     function esc(str) {
