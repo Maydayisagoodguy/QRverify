@@ -80,9 +80,16 @@ module.exports = async function uploadRoutes(fastify) {
   });
 
   // GET /admin/batches/:code/export — build ZIP in memory then send
+  // Accepts key via header (fetch) OR ?key= query param (direct link, avoids async download blocking)
   fastify.get('/batches/:code/export', {
-    preHandler: [adminRateLimit, adminAuth],
+    preHandler: [adminRateLimit],
   }, async (request, reply) => {
+    const key = request.headers['x-admin-key'] || request.query.key || '';
+    const { adminApiKey } = require('../../config');
+    const bk = Buffer.from(key); const bv = Buffer.from(adminApiKey);
+    const valid = bk.length === bv.length && require('crypto').timingSafeEqual(bk, bv);
+    if (!valid) return reply.code(401).send({ error: 'Unauthorized', code: 'INVALID_KEY' });
+
     const { code } = request.params;
 
     const products = await db.getBatchProductsForExport(code);

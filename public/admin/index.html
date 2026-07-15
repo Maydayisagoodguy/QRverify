@@ -1500,31 +1500,15 @@
       }
     }
 
-    async function downloadZip(batchCode) {
-      toast('Generating ZIP…');
-      try {
-        const res = await fetch(`/admin/batches/${encodeURIComponent(batchCode)}/export`, {
-          headers: { 'x-admin-key': adminKey },
-        });
-        if (!res.ok) {
-          const msg = await res.text().catch(() => res.status);
-          toast(`Export failed (${res.status}): ${msg}`, 'error');
-          return;
-        }
-        const blob = await res.blob();
-        if (!blob.size) { toast('Export failed: empty response from server', 'error'); return; }
-        const url = URL.createObjectURL(blob);
-        const a   = document.createElement('a');
-        a.href = url;
-        a.download = `${batchCode}-qrcodes.zip`;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        setTimeout(() => URL.revokeObjectURL(url), 2000);
-        toast('ZIP downloaded', 'success');
-      } catch (err) {
-        toast(`Download error: ${err.message}`, 'error');
-      }
+    function downloadZip(batchCode) {
+      // Direct URL download — avoids browser blocking async a.click() after fetch()
+      const url = `/admin/batches/${encodeURIComponent(batchCode)}/export?key=${encodeURIComponent(adminKey)}`;
+      const a   = document.createElement('a');
+      a.href = url;
+      a.download = `${batchCode}-qrcodes.zip`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
     }
 
     async function recallBatch(batchCode, btn) {
