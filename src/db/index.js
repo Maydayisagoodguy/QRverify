@@ -85,7 +85,8 @@ async function getBatchProductsForExport(batchCode) {
   const { data, error } = await db
     .from('products')
     .select('serial, hmac, product_name, batch_code')
-    .eq('batch_code', batchCode);
+    .eq('batch_code', batchCode)
+    .limit(100000); // Supabase default is 1000 — override for large batches
   if (error) throw error;
   return data || [];
 }

@@ -97,6 +97,8 @@ async function processExcel(fileBuffer) {
 async function buildZip(products, reply) {
   const archive = archiver('zip', { zlib: { level: 6 } });
 
+  // Hijack tells Fastify not to touch the response — we own the raw socket from here
+  reply.hijack();
   reply.raw.setHeader('Content-Type', 'application/zip');
   reply.raw.setHeader(
     'Content-Disposition',
