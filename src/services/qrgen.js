@@ -95,38 +95,39 @@ async function processExcel(fileBuffer) {
 }
 
 async function buildZip(products) {
-  const archive = archiver('zip', { zlib: { level: 6 } });
-  const chunks  = [];
-
-  archive.on('data', chunk => chunks.push(chunk));
-
-  // CSV manifest
-  const csvLines = ['serial,qr_url,batch_code,product_name'];
-  for (const p of products) {
-    const url = buildURL(p.serial, p.hmac);
-    csvLines.push(`${p.serial},${url},${p.batch_code},${p.product_name}`);
-  }
-  archive.append(csvLines.join('\n'), { name: 'serials.csv' });
-
-  // QR PNGs (batched to avoid OOM on large batches)
+  // Do all async work BEFORE touching the stream
   const BATCH = 50;
+  const pngEntries = [];
   for (let i = 0; i < products.length; i += BATCH) {
     const chunk = products.slice(i, i + BATCH);
     const pngs  = await Promise.all(
       chunk.map(p => generateQRPng(buildURL(p.serial, p.hmac)))
     );
-    pngs.forEach((buf, idx) => {
-      archive.append(buf, { name: `${chunk[idx].serial}.png` });
-    });
+    pngs.forEach((buf, idx) => pngEntries.push({ serial: chunk[idx].serial, buf }));
   }
 
-  await new Promise((resolve, reject) => {
-    archive.on('finish', resolve);
-    archive.on('error', reject);
+  const csvLines = ['serial,qr_url,batch_code,product_name'];
+  for (const p of products) {
+    const url = buildURL(p.serial, p.hmac);
+    csvLines.push(`${p.serial},${url},${p.batch_code},${p.product_name}`);
+  }
+
+  // Build ZIP — no async inside Promise, listen for 'end' (readable done) not 'finish' (writable done)
+  return new Promise((resolve, reject) => {
+    const archive = archiver('zip', { zlib: { level: 6 } });
+    const chunks  = [];
+
+    archive.on('data',  chunk => chunks.push(chunk));
+    archive.on('end',   ()    => resolve(Buffer.concat(chunks)));
+    archive.on('error', err   => reject(err));
+
+    archive.append(csvLines.join('\n'), { name: 'serials.csv' });
+    for (const { serial, buf } of pngEntries) {
+      archive.append(buf, { name: `${serial}.png` });
+    }
+
     archive.finalize();
   });
-
-  return Buffer.concat(chunks);
 }
 
 module.exports = { processExcel, buildZip, generateHMAC, verifyHMAC, buildURL };
