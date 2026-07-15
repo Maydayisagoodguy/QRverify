@@ -30,7 +30,7 @@ fastify.register(require('@fastify/helmet'), {
       styleSrc:       ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com', 'https://unpkg.com'],
       fontSrc:        ["'self'", 'https://fonts.gstatic.com'],
       imgSrc:         ["'self'", 'data:', 'https:', 'blob:'],
-      connectSrc:     ["'self'"],
+      connectSrc:     ["'self'", 'https://fonts.googleapis.com', 'https://fonts.gstatic.com'],
       frameSrc:       ["'none'"],
       objectSrc:      ["'none'"],
       upgradeInsecureRequests: [],
