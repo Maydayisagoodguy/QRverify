@@ -1,11 +1,12 @@
 'use strict';
 
-const crypto  = require('crypto');
-const QRCode  = require('qrcode');
-const XLSX    = require('xlsx');
+const crypto      = require('crypto');
+const { PassThrough } = require('stream');
+const QRCode      = require('qrcode');
+const XLSX        = require('xlsx');
 const { v4: uuidv4 } = require('uuid');
-const archiver = require('archiver');
-const config  = require('../config');
+const archiver    = require('archiver');
+const config      = require('../config');
 
 const REQUIRED_COLS = ['product_name', 'batch_code', 'serial_prefix', 'quantity'];
 
@@ -112,14 +113,21 @@ async function buildZip(products) {
     csvLines.push(`${p.serial},${url},${p.batch_code},${p.product_name}`);
   }
 
-  // Build ZIP — no async inside Promise, listen for 'end' (readable done) not 'finish' (writable done)
+  // Pipe archive → PassThrough so we get a reliable 'end' event on the output side
   return new Promise((resolve, reject) => {
     const archive = archiver('zip', { zlib: { level: 6 } });
+    const pass    = new PassThrough();
     const chunks  = [];
 
-    archive.on('data',  chunk => chunks.push(chunk));
-    archive.on('end',   ()    => resolve(Buffer.concat(chunks)));
-    archive.on('error', err   => reject(err));
+    // Timeout: if the archive hangs, fail fast with a clear error
+    const timer = setTimeout(() => reject(new Error('ZIP generation timed out')), 30000);
+
+    pass.on('data',  chunk => chunks.push(chunk));
+    pass.on('end',   ()    => { clearTimeout(timer); resolve(Buffer.concat(chunks)); });
+    pass.on('error', err   => { clearTimeout(timer); reject(err); });
+    archive.on('error', err => { clearTimeout(timer); reject(err); });
+
+    archive.pipe(pass);
 
     archive.append(csvLines.join('\n'), { name: 'serials.csv' });
     for (const { serial, buf } of pngEntries) {
