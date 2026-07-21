@@ -132,7 +132,7 @@
     }
 
     .status-band.verified  { background: #F0FDF4; }
-    .status-band.warning   { background: #FFFBEB; }
+    .status-band.warning   { background: #FFF1F2; }
     .status-band.fake      { background: #FFF1F2; }
     .status-band.inactive  { background: #F9FAFB; }
     .status-band.loading   { background: var(--gray-100); }
@@ -147,7 +147,7 @@
     }
 
     .status-band.verified  .status-icon-wrap { background: #D1FAE5; }
-    .status-band.warning   .status-icon-wrap { background: #FEF3C7; }
+    .status-band.warning   .status-icon-wrap { background: #FEE2E2; }
     .status-band.fake      .status-icon-wrap { background: #FEE2E2; }
     .status-band.inactive  .status-icon-wrap { background: var(--gray-200); }
     .status-band.loading   .status-icon-wrap { background: var(--gray-200); }
@@ -164,7 +164,7 @@
       margin-bottom: 4px;
     }
     .status-band.verified  .status-eyebrow { color: #059669; }
-    .status-band.warning   .status-eyebrow { color: #D97706; }
+    .status-band.warning   .status-eyebrow { color: var(--red); }
     .status-band.fake      .status-eyebrow { color: var(--red); }
     .status-band.inactive  .status-eyebrow { color: var(--gray-500); }
     .status-band.loading   .status-eyebrow { color: var(--gray-500); }
@@ -213,7 +213,7 @@
 
     /* ── Verified hero (premium authenticated state) ──── */
     .verified-hero {
-      background: linear-gradient(160deg, #111111 0%, #1b1b1b 100%);
+      background: linear-gradient(160deg, #052e16 0%, #064e3b 100%);
       padding: 36px 36px 32px;
       text-align: center;
       position: relative;
@@ -225,14 +225,14 @@
       position: absolute;
       top: 0; left: 0; right: 0;
       height: 4px;
-      background: var(--red);
+      background: #22C55E;
     }
     .verified-glow {
       position: absolute;
       top: -60px; left: 50%;
       transform: translateX(-50%);
       width: 280px; height: 280px;
-      background: radial-gradient(circle, rgba(184,31,36,0.14) 0%, transparent 65%);
+      background: radial-gradient(circle, rgba(34,197,94,0.18) 0%, transparent 65%);
       pointer-events: none;
     }
     .verified-seal {
@@ -240,7 +240,7 @@
       z-index: 1;
       width: 88px; height: 96px;
       margin: 0 auto 18px;
-      filter: drop-shadow(0 6px 20px rgba(184,31,36,0.4));
+      filter: drop-shadow(0 6px 20px rgba(34,197,94,0.4));
     }
     .verified-seal svg { width: 100%; height: 100%; }
     @keyframes drawCheck {
@@ -257,7 +257,7 @@
       font-weight: 700;
       letter-spacing: 0.16em;
       text-transform: uppercase;
-      color: var(--red);
+      color: #4ade80;
       margin-bottom: 8px;
       position: relative; z-index: 1;
     }
@@ -650,7 +650,7 @@
   <script>
     const ICONS = {
       verified: `<svg viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>`,
-      warning:  `<svg viewBox="0 0 24 24" fill="none" stroke="#D97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`,
+      warning:  `<svg viewBox="0 0 24 24" fill="none" stroke="#B81F24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`,
       fake:     `<svg viewBox="0 0 24 24" fill="none" stroke="#B81F24" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>`,
       inactive: `<svg viewBox="0 0 24 24" fill="none" stroke="#777" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>`,
     };
@@ -662,9 +662,9 @@
         sub:      'This First Molecule product has been authenticated successfully.',
       },
       warning: {
-        eyebrow:  'Caution Required',
-        heading:  'Previously Scanned ⚠',
-        sub:      'This QR code has been scanned from a different location. If purchased as new, this product may be counterfeit.',
+        eyebrow:  'Duplicate Scan',
+        heading:  'Multiple Scans Detected',
+        sub:      'This QR code has been scanned from multiple locations. If you purchased this as new, please verify with the seller.',
       },
       fake: {
         eyebrow:  'Verification Failed',
@@ -718,11 +718,11 @@
           <div class="verified-seal">
             <svg viewBox="0 0 100 110" fill="none" xmlns="http://www.w3.org/2000/svg">
               <path d="M50 6 L86 21 L86 53 C86 73 70 89 50 96 C30 89 14 73 14 53 L14 21 Z"
-                    fill="#B81F24" opacity="0.13" stroke="#B81F24" stroke-width="1.5"/>
+                    fill="#22C55E" opacity="0.18" stroke="#22C55E" stroke-width="1.5"/>
               <path d="M50 17 L76 29 L76 53 C76 68 64 80 50 85 C36 80 24 68 24 53 L24 29 Z"
-                    fill="#B81F24" opacity="0.09"/>
+                    fill="#22C55E" opacity="0.10"/>
               <polyline class="check-anim" points="33,54 45,66 68,38"
-                        stroke="#B81F24" stroke-width="5.5"
+                        stroke="#4ade80" stroke-width="5.5"
                         stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
           </div>
@@ -768,8 +768,8 @@
         : '';
 
       const warningNotice = s === 'warning'
-        ? `<div style="margin-top:16px;padding:12px 14px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:8px;font-size:13px;color:#92400E;line-height:1.6;">
-             ⚠ This QR was scanned from a different location previously. If purchased new, this product may be counterfeit.
+        ? `<div style="margin-top:16px;padding:12px 14px;background:#FFF1F2;border:1px solid #FECACA;border-radius:8px;font-size:13px;color:#991B1B;line-height:1.6;">
+             This QR code has been scanned from multiple locations. If you purchased this product as new, please verify authenticity with your seller.
            </div>`
         : '';
 

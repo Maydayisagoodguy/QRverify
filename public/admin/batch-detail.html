@@ -380,31 +380,6 @@
       </div>
     </div>
 
-    <!-- Generate more QR for this batch -->
-    <div class="card">
-      <div class="card-header">
-        <span class="card-title">Generate More QR Codes</span>
-        <span style="font-size:12px;color:var(--text-muted);">Appends serials continuing from last seq</span>
-      </div>
-      <div class="card-body">
-        <div class="form-row">
-          <div class="form-group">
-            <label class="form-label">Quantity *</label>
-            <input type="number" class="form-input w-sm" id="gen-qty" min="1" max="10000" placeholder="e.g. 50"/>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Product / Note</label>
-            <input type="text" class="form-input w-md" id="gen-name" placeholder="e.g. CalmEase 500mg"/>
-          </div>
-          <button class="btn btn-primary" onclick="generateMore()">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
-            Generate &amp; Download
-          </button>
-        </div>
-        <div id="gen-status" style="margin-top:12px;font-size:13px;color:var(--text-muted);display:none;"></div>
-      </div>
-    </div>
-
     <!-- Add Remark -->
     <div class="card">
       <div class="card-header">
@@ -436,9 +411,12 @@
       <div class="card-header">
         <span class="card-title">Serial Numbers</span>
         <div class="filter-bar">
-          <select class="filter-select" id="remark-filter" onchange="filterByRemark()">
-            <option value="">All serials</option>
-          </select>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;white-space:nowrap;">Filter by remark</span>
+            <select class="filter-select" id="remark-filter" onchange="filterByRemark()" style="min-width:220px;">
+              <option value="">— Show all serials —</option>
+            </select>
+          </div>
           <button class="btn btn-ghost btn-sm" onclick="refreshAll()">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
             Refresh
@@ -526,9 +504,12 @@
       document.getElementById('stat-country').textContent = batch.target_country || '—';
       document.getElementById('stat-created').textContent = 'Created ' + fmtDate(batch.created_at);
 
+      // Update placeholder hints so admin knows valid range
       const maxSeq = stats.maxSeq || stats.total || 1;
-      document.getElementById('from-seq').value = 1;
-      document.getElementById('to-seq').value   = maxSeq;
+      document.getElementById('from-seq').placeholder = '1';
+      document.getElementById('to-seq').placeholder   = String(maxSeq);
+      document.getElementById('from-seq').value = '';
+      document.getElementById('to-seq').value   = '';
     } catch (err) {
       toast('Failed to load batch: ' + err.message, 'error');
       document.getElementById('page-batch-code').textContent = batchCode;
