@@ -1334,6 +1334,7 @@
         document.querySelectorAll('[data-filter]').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         currentMapFilter = btn.dataset.filter;
+        closeMapPanel();
         renderMapMarkers(currentMapFilter);
       });
     });
@@ -1942,6 +1943,7 @@
     async function onMapBatchChange() {
       const sel = document.getElementById('map-filter-batch');
       const code = sel ? sel.value : '';
+      closeMapPanel();
       renderMapMarkers(currentMapFilter);
 
       if (!code) {
