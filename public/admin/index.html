@@ -1203,6 +1203,11 @@
       activeSection = name;
       window.location.hash = name;
 
+      // Leaflet needs invalidateSize whenever the map container becomes visible
+      if (name === 'dashboard' && mapInstance) {
+        setTimeout(() => mapInstance.invalidateSize(), 50);
+      }
+
       if (!loadedSections.has(name)) {
         loadedSections.add(name);
         if (name === 'batches')  loadBatches();
@@ -1428,6 +1433,8 @@
         }
 
         renderMapMarkers(currentMapFilter);
+        // Force Leaflet to recalculate container size after grid layout settles
+        setTimeout(() => mapInstance && mapInstance.invalidateSize(), 150);
       } catch {}
     }
 
@@ -1468,35 +1475,36 @@
       const label = document.getElementById('map-count-label');
       if (label) label.textContent = filter === 'all' ? `${points.length} scans` : `${points.length} ${filter}`;
 
-      points.forEach(d => {
+      // circleMarker = SVG path, not a DOM node — renders 1000+ points without jank
+      // addLayers() bulk-adds to the cluster group in one pass (much faster than one-by-one)
+      const markers = points.map(d => {
         const color = colors[d.result] || '#9CA3AF';
-        const icon = L.divIcon({
-          html: `<div style="width:12px;height:12px;border-radius:50%;background:${color};border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.3);"></div>`,
-          className: '',
-          iconSize: [12, 12],
-          iconAnchor: [6, 6],
-        });
         const loc  = [d.city, d.country].filter(Boolean).join(', ') || 'Unknown location';
         const name = esc(d.product_name || 'Unknown product');
         const ser  = d.serial ? d.serial.slice(0, 14) + '…' : '—';
         const bat  = esc(d.batch_code || '—');
         const time = new Date(d.scanned_at).toLocaleString('en-IN', { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
         const dot  = `<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${color};margin-right:5px;vertical-align:middle;"></span>`;
-
-        L.marker([d.lat, d.lng], { icon })
-          .bindPopup(
-            `<div style="font-family:Manrope,sans-serif;min-width:190px;line-height:1.5;">
-              <div style="font-weight:700;font-size:13px;color:#111;margin-bottom:3px;">${name}</div>
-              <div style="font-size:10px;color:#aaa;font-family:monospace;margin-bottom:8px;">${ser}</div>
-              <div style="margin-bottom:6px;">${dot}<span style="font-size:12px;font-weight:600;color:#333;text-transform:capitalize;">${d.result}</span></div>
-              <div style="font-size:11px;color:#555;margin-bottom:2px;">📦 Batch: ${bat}</div>
-              <div style="font-size:11px;color:#555;margin-bottom:2px;">📍 ${esc(loc)}</div>
-              <div style="font-size:11px;color:#999;">${time}</div>
-            </div>`,
-            { maxWidth: 230 }
-          )
-          .addTo(clusterLayer);
+        return L.circleMarker([d.lat, d.lng], {
+          radius: 6,
+          fillColor: color,
+          color: '#fff',
+          weight: 1.5,
+          opacity: 1,
+          fillOpacity: 0.85,
+        }).bindPopup(
+          `<div style="font-family:Manrope,sans-serif;min-width:190px;line-height:1.5;">
+            <div style="font-weight:700;font-size:13px;color:#111;margin-bottom:3px;">${name}</div>
+            <div style="font-size:10px;color:#aaa;font-family:monospace;margin-bottom:8px;">${ser}</div>
+            <div style="margin-bottom:6px;">${dot}<span style="font-size:12px;font-weight:600;color:#333;text-transform:capitalize;">${d.result}</span></div>
+            <div style="font-size:11px;color:#555;margin-bottom:2px;">📦 Batch: ${bat}</div>
+            <div style="font-size:11px;color:#555;margin-bottom:2px;">📍 ${esc(loc)}</div>
+            <div style="font-size:11px;color:#999;">${time}</div>
+          </div>`,
+          { maxWidth: 230 }
+        );
       });
+      clusterLayer.addLayers(markers);
 
       mapInstance.addLayer(clusterLayer);
 
@@ -1876,6 +1884,10 @@
       let t;
       return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
     }
+
+    window.addEventListener('resize', () => {
+      if (mapInstance) mapInstance.invalidateSize();
+    });
 
     init();
   </script>
