@@ -678,27 +678,15 @@
       },
     };
 
-    const serial   = window.location.pathname.split('/').filter(Boolean).pop();
-    const params   = new URLSearchParams(window.location.search);
-    const status   = params.get('status') || 'fake';
+    const serial    = window.location.pathname.split('/').filter(Boolean).pop();
+    const params    = new URLSearchParams(window.location.search);
+    const status    = params.get('status') || 'fake';
     const prevScans = parseInt(params.get('scans') || '0', 10);
+    const remark    = params.get('remark') || null;
 
     async function init() {
       renderStatus(status);
-
-      if (status === 'fake') {
-        renderNoProduct();
-        return;
-      }
-
-      try {
-        const res = await fetch(`/api/product/${encodeURIComponent(serial)}`);
-        if (!res.ok) throw new Error('not found');
-        const product = await res.json();
-        renderProduct(product, status);
-      } catch {
-        renderNoProduct();
-      }
+      renderBody(status, remark);
     }
 
     function renderStatus(s) {
@@ -759,83 +747,51 @@
       `;
     }
 
-    function renderProduct(p, s) {
+    function renderBody(s, remarkText) {
       const body = document.getElementById('product-body');
 
-      const fmt = d => d ? new Date(d).toLocaleDateString('en-IN', { year:'numeric', month:'short', day:'numeric' }) : '—';
+      const scanLine = prevScans === 0
+        ? `<div style="display:flex;align-items:center;gap:8px;font-size:14px;color:#059669;font-weight:600;">
+             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+             First scan of this product
+           </div>`
+        : `<div style="display:flex;align-items:center;gap:8px;font-size:14px;color:#B45309;font-weight:500;">
+             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+             Scanned ${prevScans === 1 ? '1 time' : prevScans + ' times'} previously
+           </div>`;
+
+      const remarkBlock = remarkText
+        ? `<div style="margin-top:16px;padding:14px 16px;background:#F0F9FF;border:1px solid #BAE6FD;border-radius:8px;">
+             <div style="font-size:10px;font-weight:700;color:#0284C7;letter-spacing:.08em;text-transform:uppercase;margin-bottom:4px;">Note</div>
+             <div style="font-size:14px;color:#0C4A6E;line-height:1.5;">${esc(remarkText)}</div>
+           </div>`
+        : '';
+
+      const warningNotice = s === 'warning'
+        ? `<div style="margin-top:16px;padding:12px 14px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:8px;font-size:13px;color:#92400E;line-height:1.6;">
+             ⚠ This QR was scanned from a different location previously. If purchased new, this product may be counterfeit.
+           </div>`
+        : '';
+
+      const reportBtn = (s === 'warning' || s === 'fake')
+        ? `<div class="actions" style="border-top:1px solid var(--gray-200);padding:16px 0 0;margin-top:20px;">
+             <button class="btn btn-danger" onclick="openModal()">Report this product</button>
+           </div>`
+        : '';
+
+      const fakeMsg = s === 'fake'
+        ? `<div style="font-size:14px;color:var(--gray-600);line-height:1.7;">
+             This QR code is not registered in First Molecule's system. Do not use or consume this product.
+           </div>`
+        : '';
 
       body.innerHTML = `
-        <div class="product-image-wrap">
-          ${p.product_image_url
-            ? `<img src="${esc(p.product_image_url)}" alt="${esc(p.product_name)}" loading="lazy" />`
-            : `<div class="product-image-placeholder">
-                <div class="product-initial">${esc(p.product_name.charAt(0).toUpperCase())}</div>
-                <span>Product Image</span>
-               </div>`}
-        </div>
-
-        <div class="product-name">${esc(p.product_name)}</div>
-        <div class="product-meta">
-          <span class="batch-chip">Batch · ${esc(p.batch_code)}</span>
-        </div>
-
-        <div class="details-grid">
-          <div class="detail-cell">
-            <div class="detail-label">Manufacturer</div>
-            <div class="detail-value">${esc(p.manufacturer || '—')}</div>
-          </div>
-          <div class="detail-cell">
-            <div class="detail-label">Origin</div>
-            <div class="detail-value">${esc(p.country_of_origin || '—')}</div>
-          </div>
-          <div class="detail-cell">
-            <div class="detail-label">Manufactured</div>
-            <div class="detail-value">${fmt(p.manufacturing_date)}</div>
-          </div>
-          <div class="detail-cell">
-            <div class="detail-label">Expires</div>
-            <div class="detail-value">${fmt(p.expiry_date)}</div>
-          </div>
-          ${p.distributor ? `
-          <div class="detail-cell full">
-            <div class="detail-label">Distributor</div>
-            <div class="detail-value">${esc(p.distributor)}</div>
-          </div>` : ''}
-        </div>
-      `;
-
-      // Warning notice
-      if (s === 'warning') {
-        const notice = document.createElement('div');
-        notice.className = 'warning-notice';
-        notice.style.marginTop = '20px';
-        notice.innerHTML = '⚠ This QR was previously scanned from a different location. If you purchased this product as new, it may be counterfeit. Report it using the button below.';
-        body.appendChild(notice);
-      }
-
-      // Actions
-      const actions = document.createElement('div');
-      actions.className = 'actions';
-      if (s === 'verified') {
-        actions.innerHTML = `
-          <button class="btn btn-ghost" onclick="window.print()">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
-            Print
-          </button>`;
-      } else if (s === 'warning') {
-        actions.innerHTML = `
-          <button class="btn btn-danger" onclick="openModal()">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
-            Report this product
-          </button>`;
-      }
-      document.getElementById('card').appendChild(actions);
-    }
-
-    function renderNoProduct() {
-      document.getElementById('product-body').innerHTML = `
-        <div class="no-product-body">
-          <p>This QR code could not be authenticated against First Molecule's product database. Do not use or consume this product. If you believe this is an error, contact First Molecule directly at <a href="https://firstmolecule.com" style="color:var(--red);">firstmolecule.com</a>.</p>
+        <div style="padding:24px 28px;">
+          ${fakeMsg}
+          ${s !== 'fake' ? scanLine : ''}
+          ${remarkBlock}
+          ${warningNotice}
+          ${reportBtn}
         </div>
       `;
     }

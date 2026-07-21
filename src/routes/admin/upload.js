@@ -3,7 +3,7 @@
 const adminAuth = require('../../middleware/adminAuth');
 const { adminRateLimit } = require('../../middleware/rateLimit');
 const db        = require('../../db');
-const { processExcel, buildZip } = require('../../services/qrgen');
+const { processExcel, buildZip, buildSerial, generateHMAC, formatSeq } = require('../../services/qrgen');
 
 module.exports = async function uploadRoutes(fastify) {
 
@@ -35,7 +35,7 @@ module.exports = async function uploadRoutes(fastify) {
       return reply.code(400).send({ error: 'No valid rows found in Excel', code: 'EMPTY', warnings });
     }
 
-    // 1. Upsert batch rows first (products FK references batch_code)
+    // 1. Upsert batches
     for (const batchMeta of batches.values()) {
       try {
         await db.upsertBatch(batchMeta);
@@ -45,7 +45,24 @@ module.exports = async function uploadRoutes(fastify) {
       }
     }
 
-    // 2. Bulk insert products
+    // 2. Resolve actual seq — offset by existing DB max per batch
+    const batchMaxSeq     = {};
+    const batchRelCounter = {};
+    for (const [code] of batches) {
+      batchMaxSeq[code] = await db.getMaxSeq(code);
+    }
+
+    for (const p of products) {
+      const code = p.batch_code;
+      batchRelCounter[code] = (batchRelCounter[code] || 0) + 1;
+      const finalSeq = batchMaxSeq[code] + batchRelCounter[code];
+      p.seq    = finalSeq;
+      p.serial = buildSerial(code, finalSeq);
+      p.hmac   = generateHMAC(p.serial);
+      delete p._relSeq;
+    }
+
+    // 3. Bulk insert
     try {
       await db.insertProducts(products);
     } catch (err) {
@@ -53,7 +70,7 @@ module.exports = async function uploadRoutes(fastify) {
       return reply.code(500).send({ error: 'Database error during insert', code: 'DB_ERROR' });
     }
 
-    // 3. Log the upload action for audit trail
+    // 4. Audit
     for (const batchMeta of batches.values()) {
       db.logAuditAction('UPLOAD_BATCH', 'batch', batchMeta.batchCode, {
         totalUnits: products.filter(p => p.batch_code === batchMeta.batchCode).length,
@@ -61,26 +78,23 @@ module.exports = async function uploadRoutes(fastify) {
       }).catch(() => {});
     }
 
-    // Summary for response
     const batchSummary = [];
     for (const [code, meta] of batches) {
+      const bp = products.filter(p => p.batch_code === code);
       batchSummary.push({
         batch_code:   code,
         product_name: meta.productName,
-        count:        products.filter(p => p.batch_code === code).length,
+        count:        bp.length,
+        from_seq:     formatSeq(bp[0]?.seq || 0),
+        to_seq:       formatSeq(bp[bp.length - 1]?.seq || 0),
       });
     }
 
-    return {
-      success:  true,
-      total:    products.length,
-      batches:  batchSummary,
-      warnings,
-    };
+    return { success: true, total: products.length, batches: batchSummary, warnings };
   });
 
-  // GET /admin/batches/:code/export — build ZIP in memory then send
-  // Accepts key via header (fetch) OR ?key= query param (direct link, avoids async download blocking)
+  // GET /admin/batches/:code/export — ZIP of SVG labels
+  // Accepts key via header OR ?key= query param (direct link download)
   fastify.get('/batches/:code/export', {
     preHandler: [adminRateLimit],
   }, async (request, reply) => {
@@ -91,7 +105,6 @@ module.exports = async function uploadRoutes(fastify) {
     if (!valid) return reply.code(401).send({ error: 'Unauthorized', code: 'INVALID_KEY' });
 
     const { code } = request.params;
-
     const products = await db.getBatchProductsForExport(code);
     if (!products.length) {
       return reply.code(404).send({ error: 'Batch not found or empty', code: 'NOT_FOUND' });
@@ -100,7 +113,7 @@ module.exports = async function uploadRoutes(fastify) {
     const buffer = await buildZip(products);
     return reply
       .type('application/zip')
-      .header('Content-Disposition', `attachment; filename="${code}-qrcodes.zip"`)
+      .header('Content-Disposition', `attachment; filename="${code}-labels.zip"`)
       .send(buffer);
   });
 

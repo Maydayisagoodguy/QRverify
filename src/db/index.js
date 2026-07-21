@@ -9,7 +9,7 @@ const db = createClient(config.supabaseUrl, config.supabaseServiceKey, {
 
 // ── Batches ───────────────────────────────────────────────────────
 
-async function upsertBatch({ batchCode, productName, manufacturer, countryOfOrigin, distributor, regionExpected, productImageUrl }) {
+async function upsertBatch({ batchCode, productName, manufacturer, countryOfOrigin, distributor, regionExpected, productImageUrl, targetCountry }) {
   const { error } = await db.from('batches').upsert({
     batch_code:         batchCode,
     product_name:       productName,
@@ -18,29 +18,51 @@ async function upsertBatch({ batchCode, productName, manufacturer, countryOfOrig
     distributor:        distributor || null,
     region_expected:    regionExpected || null,
     product_image_url:  productImageUrl || null,
-  }, { onConflict: 'batch_code', ignoreDuplicates: true });
+    target_country:     targetCountry || null,
+  }, { onConflict: 'batch_code', ignoreDuplicates: false });
   if (error) throw error;
 }
 
 async function getBatches() {
-  const { data, error } = await db.rpc('get_batch_summary');
-  if (error) {
-    // Fallback: read directly from batches table (no full products scan)
-    const { data: rows, error: be } = await db
-      .from('batches')
-      .select('batch_code, product_name, total_units, active_units, created_at, status')
-      .order('created_at', { ascending: false });
-    if (be) throw be;
-    return (rows || []).map(r => ({
-      batch_code:   r.batch_code,
-      product_name: r.product_name,
-      total:        r.total_units,
-      active:       r.active_units,
-      created_at:   r.created_at,
-      status:       r.status,
-    }));
+  const { data: rows, error } = await db
+    .from('batches')
+    .select('batch_code, product_name, total_units, active_units, created_at, status, target_country')
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  if (!rows?.length) return [];
+
+  // Enrich with scan counts using two-query pattern
+  const { data: products } = await db
+    .from('products')
+    .select('batch_code, serial')
+    .in('batch_code', rows.map(r => r.batch_code));
+
+  const serialToBatch = {};
+  for (const p of (products || [])) serialToBatch[p.serial] = p.batch_code;
+
+  const allSerials = Object.keys(serialToBatch);
+  const batchScanCount = {};
+  if (allSerials.length) {
+    const { data: scanRows } = await db
+      .from('scan_logs')
+      .select('serial')
+      .in('serial', allSerials);
+    for (const s of (scanRows || [])) {
+      const bc = serialToBatch[s.serial];
+      if (bc) batchScanCount[bc] = (batchScanCount[bc] || 0) + 1;
+    }
   }
-  return data || [];
+
+  return rows.map(r => ({
+    batch_code:     r.batch_code,
+    product_name:   r.product_name,
+    total:          r.total_units,
+    active:         r.active_units,
+    created_at:     r.created_at,
+    status:         r.status,
+    target_country: r.target_country || null,
+    scans:          batchScanCount[r.batch_code] || 0,
+  }));
 }
 
 // ── Products ──────────────────────────────────────────────────────
@@ -84,11 +106,131 @@ async function getBatchProducts(batchCode) {
 async function getBatchProductsForExport(batchCode) {
   const { data, error } = await db
     .from('products')
-    .select('serial, hmac, product_name, batch_code')
+    .select('serial, hmac, seq, product_name, batch_code')
     .eq('batch_code', batchCode)
-    .limit(100000); // Supabase default is 1000 — override for large batches
+    .order('seq', { ascending: true })
+    .limit(100000);
   if (error) throw error;
   return data || [];
+}
+
+async function getMaxSeq(batchCode) {
+  const { data, error } = await db
+    .from('products')
+    .select('seq')
+    .eq('batch_code', batchCode)
+    .order('seq', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return data?.seq || 0;
+}
+
+async function getSerialsByBatch(batchCode, { remarkFilter } = {}) {
+  let q = db
+    .from('products')
+    .select('seq, serial, is_active, remark, remark_updated_at')
+    .eq('batch_code', batchCode)
+    .order('seq', { ascending: true })
+    .limit(100000);
+
+  if (remarkFilter) q = q.eq('remark', remarkFilter);
+
+  const { data, error } = await q;
+  if (error) throw error;
+  const rows = data || [];
+  if (!rows.length) return rows;
+
+  // Enrich with scan count per serial
+  const serials = rows.map(r => r.serial);
+  const { data: scanRows } = await db
+    .from('scan_logs')
+    .select('serial')
+    .in('serial', serials);
+
+  const scanCount = {};
+  for (const s of (scanRows || [])) {
+    scanCount[s.serial] = (scanCount[s.serial] || 0) + 1;
+  }
+
+  return rows.map(r => ({
+    seq:                r.seq,
+    serial:             r.serial,
+    is_active:          r.is_active,
+    remark:             r.remark || null,
+    remark_updated_at:  r.remark_updated_at || null,
+    scan_count:         scanCount[r.serial] || 0,
+  }));
+}
+
+async function applyRemarkToRange(batchCode, fromSeq, toSeq, remarkText) {
+  const { error } = await db
+    .from('products')
+    .update({
+      remark:             remarkText,
+      remark_updated_at:  new Date().toISOString(),
+    })
+    .eq('batch_code', batchCode)
+    .gte('seq', fromSeq)
+    .lte('seq', toSeq);
+  if (error) throw error;
+}
+
+async function clearRemarkRange(batchCode, fromSeq, toSeq) {
+  const { error } = await db
+    .from('products')
+    .update({ remark: null, remark_updated_at: null })
+    .eq('batch_code', batchCode)
+    .gte('seq', fromSeq)
+    .lte('seq', toSeq);
+  if (error) throw error;
+}
+
+async function getDistinctRemarks(batchCode) {
+  const { data, error } = await db
+    .from('products')
+    .select('remark')
+    .eq('batch_code', batchCode)
+    .not('remark', 'is', null)
+    .neq('remark', '');
+  if (error) throw error;
+  const distinct = [...new Set((data || []).map(r => r.remark))].filter(Boolean);
+  return distinct;
+}
+
+async function getBatchDetail(batchCode) {
+  const [batchRes, statsRes] = await Promise.all([
+    db.from('batches').select('*').eq('batch_code', batchCode).maybeSingle(),
+    db.from('products').select('seq, serial, remark').eq('batch_code', batchCode).limit(100000),
+  ]);
+  if (batchRes.error) throw batchRes.error;
+  if (statsRes.error) throw statsRes.error;
+
+  const batch    = batchRes.data;
+  const products = statsRes.data || [];
+  if (!batch) return null;
+
+  const serials = products.map(p => p.serial);
+  let totalScans = 0;
+  if (serials.length) {
+    const { count } = await db
+      .from('scan_logs')
+      .select('id', { count: 'exact', head: true })
+      .in('serial', serials);
+    totalScans = count || 0;
+  }
+
+  const remarkCount = new Set(products.map(p => p.remark).filter(Boolean)).size;
+
+  return {
+    batch,
+    stats: {
+      total:       products.length,
+      totalScans,
+      remarkCount,
+      maxSeq:      products.length ? Math.max(...products.map(p => p.seq || 0)) : 0,
+    },
+  };
 }
 
 // ── Scan logs ─────────────────────────────────────────────────────
@@ -340,6 +482,12 @@ module.exports = {
   deactivateByBatch,
   getBatchProducts,
   getBatchProductsForExport,
+  getMaxSeq,
+  getSerialsByBatch,
+  applyRemarkToRange,
+  clearRemarkRange,
+  getDistinctRemarks,
+  getBatchDetail,
   // Scan logs
   logScan,
   getScanHistory,

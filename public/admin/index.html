@@ -906,10 +906,16 @@
             <div class="section-eyebrow">Manage</div>
             <span class="section-title">Batches</span>
           </div>
-          <a href="/admin/upload" class="btn btn-primary btn-sm">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-            New Upload
-          </a>
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-primary btn-sm" onclick="openGenerateModal()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+              Generate QR
+            </button>
+            <a href="/admin/upload" class="btn btn-primary btn-sm">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              Excel Upload
+            </a>
+          </div>
         </div>
         <div class="table-card">
           <div class="table-wrap">
@@ -918,19 +924,54 @@
                 <tr>
                   <th>Batch Code</th>
                   <th>Product</th>
-                  <th>QR Codes</th>
+                  <th>Units</th>
+                  <th>Scans</th>
+                  <th>Country</th>
                   <th>Status</th>
                   <th>Created</th>
                   <th>Actions</th>
                 </tr>
               </thead>
               <tbody id="batches-body">
-                <tr class="loading-row"><td colspan="6"><div class="spinner" style="margin:0 auto;"></div></td></tr>
+                <tr class="loading-row"><td colspan="8"><div class="spinner" style="margin:0 auto;"></div></td></tr>
               </tbody>
             </table>
           </div>
         </div>
       </section>
+
+      <!-- Generate QR Modal -->
+      <div id="generate-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:1000;align-items:center;justify-content:center;">
+        <div style="background:#fff;border-radius:12px;padding:28px;width:420px;max-width:95vw;box-shadow:0 20px 60px rgba(0,0,0,0.18);">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+            <span style="font-size:16px;font-weight:700;">Generate QR Codes</span>
+            <button onclick="closeGenerateModal()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#71717A;">✕</button>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:14px;">
+            <div>
+              <label style="font-size:11px;font-weight:600;color:#71717A;text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:5px;">Batch Code *</label>
+              <input id="gen-batch" type="text" placeholder="e.g. BATCH-2026-001" style="width:100%;height:36px;padding:0 12px;border:1px solid #E4E4E7;border-radius:6px;font-size:13px;font-family:inherit;"/>
+            </div>
+            <div>
+              <label style="font-size:11px;font-weight:600;color:#71717A;text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:5px;">Quantity *</label>
+              <input id="gen-qty" type="number" placeholder="e.g. 100" min="1" max="10000" style="width:100%;height:36px;padding:0 12px;border:1px solid #E4E4E7;border-radius:6px;font-size:13px;font-family:inherit;"/>
+            </div>
+            <div>
+              <label style="font-size:11px;font-weight:600;color:#71717A;text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:5px;">Product Name (optional)</label>
+              <input id="gen-product" type="text" placeholder="e.g. CalmEase Melatonin 5mg" style="width:100%;height:36px;padding:0 12px;border:1px solid #E4E4E7;border-radius:6px;font-size:13px;font-family:inherit;"/>
+            </div>
+            <div>
+              <label style="font-size:11px;font-weight:600;color:#71717A;text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:5px;">Country (optional)</label>
+              <input id="gen-country" type="text" placeholder="e.g. India" style="width:100%;height:36px;padding:0 12px;border:1px solid #E4E4E7;border-radius:6px;font-size:13px;font-family:inherit;"/>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:20px;">
+            <button class="btn btn-primary" style="flex:1;" onclick="generateQR()">Generate &amp; Save</button>
+            <button class="btn btn-ghost" onclick="closeGenerateModal()">Cancel</button>
+          </div>
+          <p id="gen-result" style="margin-top:12px;font-size:12px;color:#16A34A;text-align:center;display:none;"></p>
+        </div>
+      </div>
 
       <!-- ── Scans ───────────────────────────────────────────── -->
       <section class="section" id="section-scans">
@@ -1472,41 +1513,86 @@
       try {
         const batches = await api('/admin/batches');
         if (!batches.length) {
-          body.innerHTML = `<tr><td colspan="6">${emptyState('No batches', 'Upload an Excel file to create your first batch.')}</td></tr>`;
+          body.innerHTML = `<tr><td colspan="8">${emptyState('No batches', 'Generate QR codes or upload an Excel file to get started.')}</td></tr>`;
           return;
         }
-        body.innerHTML = batches.map(b => `
-          <tr>
-            <td class="mono">${esc(b.batch_code)}</td>
-            <td style="font-weight:500;color:var(--text-primary);">${esc(b.product_name)}</td>
+        body.innerHTML = batches.map(b => {
+          const statusBadge = b.active === b.total
+            ? '<span class="badge badge-verified">Active</span>'
+            : b.active === 0
+              ? '<span class="badge badge-inactive">Recalled</span>'
+              : '<span class="badge badge-warning">Partial</span>';
+          return `
+          <tr style="cursor:pointer;" onclick="openBatch('${esc(b.batch_code)}')">
+            <td class="mono" style="font-weight:600;color:var(--accent);">${esc(b.batch_code)}</td>
+            <td style="font-weight:500;color:var(--text-primary);">${esc(b.product_name || '—')}</td>
             <td>${fmt(b.total)}</td>
-            <td>${b.active === b.total ? '<span class="badge badge-verified">Active</span>' : b.active === 0 ? '<span class="badge badge-inactive">Recalled</span>' : '<span class="badge badge-warning">Partial</span>'}</td>
+            <td style="font-weight:600;">${fmt(b.scans || 0)}</td>
+            <td style="color:var(--text-muted);">${esc(b.target_country || '—')}</td>
+            <td>${statusBadge}</td>
             <td style="color:var(--text-muted);">${fmtDate(b.created_at)}</td>
-            <td>
+            <td onclick="event.stopPropagation()">
               <div class="batch-actions">
                 <button class="btn btn-ghost btn-sm" onclick="downloadZip('${esc(b.batch_code)}')">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                  QR ZIP
+                  Labels
                 </button>
                 <button class="btn btn-danger-soft btn-sm" onclick="recallBatch('${esc(b.batch_code)}', this)">Recall</button>
               </div>
             </td>
-          </tr>
-        `).join('');
+          </tr>`;
+        }).join('');
       } catch {
-        body.innerHTML = `<tr><td colspan="6" style="padding:24px;text-align:center;color:var(--text-muted);font-size:13px;">Failed to load batches.</td></tr>`;
+        body.innerHTML = `<tr><td colspan="8" style="padding:24px;text-align:center;color:var(--text-muted);font-size:13px;">Failed to load batches.</td></tr>`;
       }
     }
 
+    function openBatch(batchCode) {
+      window.location.href = `/admin/batch/${encodeURIComponent(batchCode)}`;
+    }
+
     function downloadZip(batchCode) {
-      // Direct URL download — avoids browser blocking async a.click() after fetch()
       const url = `/admin/batches/${encodeURIComponent(batchCode)}/export?key=${encodeURIComponent(adminKey)}`;
       const a   = document.createElement('a');
-      a.href = url;
-      a.download = `${batchCode}-qrcodes.zip`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
+      a.href = url; a.download = `${batchCode}-labels.zip`;
+      document.body.appendChild(a); a.click(); a.remove();
+    }
+
+    function openGenerateModal() {
+      const m = document.getElementById('generate-modal');
+      m.style.display = 'flex';
+      document.getElementById('gen-batch').focus();
+    }
+
+    function closeGenerateModal() {
+      document.getElementById('generate-modal').style.display = 'none';
+      document.getElementById('gen-result').style.display = 'none';
+    }
+
+    async function generateQR() {
+      const batch_code     = document.getElementById('gen-batch').value.trim();
+      const quantity       = parseInt(document.getElementById('gen-qty').value, 10);
+      const product_name   = document.getElementById('gen-product').value.trim() || null;
+      const target_country = document.getElementById('gen-country').value.trim() || null;
+
+      if (!batch_code || !quantity) { toast('Batch code and quantity are required', 'error'); return; }
+
+      try {
+        const res = await api('/admin/generate', {
+          method: 'POST',
+          body: { batch_code, quantity, product_name, target_country },
+        });
+        const msg = `✓ ${res.count} QR codes created (${res.from_seq}–${res.to_seq})`;
+        const r = document.getElementById('gen-result');
+        r.textContent = msg; r.style.display = 'block';
+        toast(msg, 'success');
+        loadedSections.delete('batches');
+        loadBatches();
+        // Auto-download ZIP after 800ms
+        setTimeout(() => downloadZip(res.batch_code), 800);
+      } catch (err) {
+        toast('Failed: ' + err.message, 'error');
+      }
     }
 
     async function recallBatch(batchCode, btn) {

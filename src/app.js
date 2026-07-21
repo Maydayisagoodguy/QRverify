@@ -69,6 +69,11 @@ fastify.get('/admin/upload', async (req, reply) => {
   return injectKey('admin/upload.html');
 });
 
+fastify.get('/admin/batch/:code', async (req, reply) => {
+  reply.type('text/html');
+  return injectKey('admin/batch-detail.html');
+});
+
 // Consumer result page — tell crawlers/bots not to index these
 fastify.get('/result/:serial', async (req, reply) => {
   reply.header('X-Robots-Tag', 'noindex, nofollow, noarchive');
@@ -79,6 +84,8 @@ fastify.get('/result/:serial', async (req, reply) => {
 fastify.register(require('./routes/consumer/verify'),  { prefix: '/v' });
 fastify.register(require('./routes/consumer/product'), { prefix: '/api' });
 fastify.register(require('./routes/admin/upload'),     { prefix: '/admin' });
+fastify.register(require('./routes/admin/generate'),   { prefix: '/admin' });
+fastify.register(require('./routes/admin/serials'),    { prefix: '/admin' });
 fastify.register(require('./routes/admin/batches'),    { prefix: '/admin' });
 fastify.register(require('./routes/admin/scans'),      { prefix: '/admin' });
 fastify.register(require('./routes/admin/alerts'),     { prefix: '/admin' });

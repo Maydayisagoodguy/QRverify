@@ -198,8 +198,9 @@ module.exports = async function verifyRoutes(fastify) {
       }
     }
 
-    // 8. Redirect to result — pass previous scan count for display
+    // 8. Redirect to result — pass scan count and remark for display
     const prevScans = history.length;
-    return reply.redirect(`/result/${encodeURIComponent(serial)}?status=${result}&scans=${prevScans}`);
+    const remark    = product.remark ? `&remark=${encodeURIComponent(product.remark)}` : '';
+    return reply.redirect(`/result/${encodeURIComponent(serial)}?status=${result}&scans=${prevScans}${remark}`);
   });
 };
