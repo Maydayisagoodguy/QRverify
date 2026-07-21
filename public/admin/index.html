@@ -827,6 +827,9 @@
               <button class="map-filter-btn" data-filter="verified">Verified</button>
               <button class="map-filter-btn" data-filter="warning">Warning</button>
               <button class="map-filter-btn" data-filter="fake">Fake</button>
+              <select id="map-filter-batch" onchange="renderMapMarkers(currentMapFilter)" style="height:26px;padding:0 8px;border:1px solid var(--border);border-radius:var(--radius-pill);font-family:inherit;font-size:11px;font-weight:600;color:var(--text-secondary);background:var(--white);outline:none;cursor:pointer;margin-left:4px;">
+                <option value="">All batches</option>
+              </select>
             </div>
             <div id="scan-map"></div>
             <div class="map-legend">
@@ -1024,6 +1027,9 @@
             <span class="section-title">Alerts</span>
           </div>
           <div style="display:flex;gap:8px;">
+            <select id="alert-filter-batch" onchange="loadAlerts()" style="height:36px;padding:0 12px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;font-size:13px;outline:none;min-width:160px;">
+              <option value="">All batches</option>
+            </select>
             <select id="alert-filter-sev" onchange="loadAlerts()" style="height:36px;padding:0 12px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;font-size:13px;outline:none;">
               <option value="">All severities</option>
               <option value="critical">Critical</option>
@@ -1429,9 +1435,14 @@
         },
       });
 
+      const batchSel = document.getElementById('map-filter-batch');
+      const batchFilter = batchSel ? batchSel.value : '';
+
       let points = mapData.filter(d => {
         if (!d.lat || !d.lng) return false;
-        return filter === 'all' || d.result === filter;
+        if (filter !== 'all' && d.result !== filter) return false;
+        if (batchFilter && d.batch_code !== batchFilter) return false;
+        return true;
       });
       if (selectedCountry) points = points.filter(d => d.country === selectedCountry);
 
@@ -1516,6 +1527,9 @@
           body.innerHTML = `<tr><td colspan="8">${emptyState('No batches', 'Generate QR codes or upload an Excel file to get started.')}</td></tr>`;
           return;
         }
+        // Populate batch filter dropdowns in other sections
+        populateBatchDropdowns(batches.map(b => b.batch_code));
+
         body.innerHTML = batches.map(b => {
           const statusBadge = b.active === b.total
             ? '<span class="badge badge-verified">Active</span>'
@@ -1544,6 +1558,22 @@
         }).join('');
       } catch {
         body.innerHTML = `<tr><td colspan="8" style="padding:24px;text-align:center;color:var(--text-muted);font-size:13px;">Failed to load batches.</td></tr>`;
+      }
+    }
+
+    function populateBatchDropdowns(codes) {
+      const targets = ['alert-filter-batch', 'map-filter-batch'];
+      for (const id of targets) {
+        const sel = document.getElementById(id);
+        if (!sel) continue;
+        const current = sel.value;
+        while (sel.options.length > 1) sel.remove(1);
+        for (const code of codes) {
+          const opt = document.createElement('option');
+          opt.value = code; opt.textContent = code;
+          sel.appendChild(opt);
+        }
+        if (current) sel.value = current;
       }
     }
 
@@ -1666,10 +1696,12 @@
 
       const severity = document.getElementById('alert-filter-sev').value;
       const resolved = document.getElementById('alert-filter-resolved').value;
+      const batch    = document.getElementById('alert-filter-batch').value;
 
       const params = new URLSearchParams({ limit: '100' });
       if (severity) params.set('severity', severity);
       if (resolved !== '') params.set('resolved', resolved);
+      if (batch)    params.set('batch', batch);
 
       try {
         const alerts = await api(`/admin/alerts?${params}`);

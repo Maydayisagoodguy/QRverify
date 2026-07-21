@@ -309,7 +309,7 @@ async function createAlert({ serial, batchCode, alertType, severity, details }) 
   if (error) throw error;
 }
 
-async function getAlerts({ resolved, severity, limit = 50, offset = 0 } = {}) {
+async function getAlerts({ resolved, severity, batchCode, limit = 50, offset = 0 } = {}) {
   let q = db
     .from('alerts')
     .select('*')
@@ -318,6 +318,7 @@ async function getAlerts({ resolved, severity, limit = 50, offset = 0 } = {}) {
 
   if (resolved !== undefined) q = q.eq('resolved', resolved);
   if (severity)               q = q.eq('severity', severity);
+  if (batchCode)              q = q.eq('batch_code', batchCode);
 
   const { data, error } = await q;
   if (error) throw error;
