@@ -7,7 +7,8 @@ if (!globalThis.WebSocket) {
   globalThis.WebSocket = require('ws');
 }
 
-const path = require('path');
+const path    = require('path');
+const config  = require('./config');
 const fastify = require('fastify')({ logger: true, trustProxy: true });
 
 // ── Security headers ──────────────────────────────────────────────
