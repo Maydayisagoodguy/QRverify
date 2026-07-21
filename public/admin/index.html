@@ -1278,12 +1278,11 @@
 
     function afterAuth() {
       loadAnalytics();
+      loadDashboard();
       // Honour any hash from sidebar links on other pages (e.g. batch-detail)
       const hash = window.location.hash.replace('#', '');
-      if (['dashboard','batches','scans','alerts','network','limits'].includes(hash)) {
+      if (['batches','scans','alerts','network','limits'].includes(hash)) {
         switchSection(hash);
-      } else {
-        loadDashboard();
       }
     }
 
