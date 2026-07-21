@@ -1236,12 +1236,6 @@
 
     // ── Auth ───────────────────────────────────────────────────────
     function init() {
-      // Hash-based navigation — runs first, before auth path diverges
-      const hash = window.location.hash.replace('#', '');
-      if (['dashboard','batches','scans','alerts','network','limits'].includes(hash)) {
-        switchSection(hash);
-      }
-
       // Key is injected by server — no manual entry needed
       const autoKey = window.__ADMIN_KEY__;
       if (autoKey) {
@@ -1284,7 +1278,13 @@
 
     function afterAuth() {
       loadAnalytics();
-      loadDashboard();
+      // Honour any hash from sidebar links on other pages (e.g. batch-detail)
+      const hash = window.location.hash.replace('#', '');
+      if (['dashboard','batches','scans','alerts','network','limits'].includes(hash)) {
+        switchSection(hash);
+      } else {
+        loadDashboard();
+      }
     }
 
     // ── Navigation ─────────────────────────────────────────────────
