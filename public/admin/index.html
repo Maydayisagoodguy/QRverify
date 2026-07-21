@@ -1161,29 +1161,26 @@
           </div>
         </div>
 
-        <!-- Global default card -->
+        <!-- Global default — compact strip -->
         <div class="table-card" style="margin-bottom:20px;">
-          <div class="card-header">
-            <div>
-              <span class="card-title">Global Default</span>
-              <div style="font-size:12px;color:var(--text-muted);margin-top:3px;">Applies to all batches unless overridden individually.</div>
+          <div style="padding:20px 24px;display:flex;align-items:center;gap:20px;flex-wrap:wrap;">
+            <div style="flex:1;min-width:220px;">
+              <div style="font-size:14px;font-weight:700;color:var(--text-primary);margin-bottom:5px;">Global Default Scan Limit</div>
+              <div style="font-size:12px;color:var(--text-muted);line-height:1.6;">Maximum scans before a <strong>Duplicate Scan</strong> warning. Applies to all batches unless overridden per-batch or per-serial.</div>
             </div>
-          </div>
-          <div style="padding:24px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
-            <div style="flex:1;min-width:200px;">
-              <div style="font-size:13px;color:var(--text-secondary);margin-bottom:8px;">A product QR can be scanned this many times before showing a <strong>Duplicate Scan</strong> warning to the customer.</div>
-              <div style="font-size:11px;color:var(--text-muted);">Set to <strong>1</strong> for maximum anti-counterfeiting. Set higher for products that may be scanned at retail, customs, or multiple checkpoints.</div>
-            </div>
-            <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
-              <div style="text-align:center;">
-                <div style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">Current limit</div>
-                <div id="global-limit-display" style="font-size:40px;font-weight:700;letter-spacing:-0.03em;color:var(--text-primary);line-height:1;">—</div>
-                <div style="font-size:11px;color:var(--text-muted);margin-top:3px;">scans per product</div>
+            <div style="display:flex;align-items:center;gap:0;flex-shrink:0;border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;">
+              <div style="padding:14px 20px;background:var(--bg-alt,#F9FAFB);border-right:1px solid var(--border);text-align:center;min-width:90px;">
+                <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px;">Current</div>
+                <div id="global-limit-display" style="font-size:30px;font-weight:800;letter-spacing:-0.03em;color:var(--text-primary);line-height:1;">—</div>
+                <div style="font-size:10px;color:var(--text-muted);margin-top:2px;">scans / QR</div>
               </div>
-              <div style="display:flex;align-items:center;gap:8px;margin-left:8px;">
-                <input id="global-limit-input" type="number" min="1" max="999" placeholder="e.g. 1"
-                  style="width:80px;height:38px;padding:0 10px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;font-size:14px;font-weight:600;text-align:center;outline:none;" />
-                <button class="btn btn-primary btn-sm" onclick="saveGlobalLimit()">Save</button>
+              <div style="padding:14px 20px;display:flex;flex-direction:column;gap:4px;">
+                <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;">Update to</div>
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <input id="global-limit-input" type="number" min="1" max="999" placeholder="1"
+                    style="width:70px;height:34px;padding:0 8px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;font-size:15px;font-weight:700;text-align:center;outline:none;" />
+                  <button class="btn btn-primary btn-sm" onclick="saveGlobalLimit()">Save</button>
+                </div>
               </div>
             </div>
           </div>
@@ -1192,25 +1189,25 @@
         <!-- Per-batch overrides with serial drill-down -->
         <div class="table-card">
           <div class="card-header">
-            <span class="card-title">Batch &amp; Serial Limits</span>
-            <span class="card-meta">Set batch-level or serial-range overrides — click a row to expand</span>
+            <div>
+              <span class="card-title">Batch &amp; Serial Limits</span>
+              <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">Set per-batch overrides or drill into serial-range limits — click ▸ to expand</div>
+            </div>
           </div>
           <div class="table-wrap">
             <table>
               <thead>
                 <tr>
-                  <th></th>
-                  <th>Batch Code</th>
-                  <th>Product</th>
-                  <th>Units</th>
-                  <th>Batch Limit</th>
-                  <th>Serial Overrides</th>
-                  <th>Effective</th>
-                  <th>Action</th>
+                  <th style="width:36px;"></th>
+                  <th>Batch / Product</th>
+                  <th style="width:70px;">Units</th>
+                  <th style="width:110px;">Effective Limit</th>
+                  <th style="width:130px;">Serial Overrides</th>
+                  <th>Set Batch Limit</th>
                 </tr>
               </thead>
               <tbody id="limits-body">
-                <tr class="loading-row"><td colspan="8"><div class="spinner" style="margin:0 auto;"></div></td></tr>
+                <tr class="loading-row"><td colspan="6"><div class="spinner" style="margin:0 auto;"></div></td></tr>
               </tbody>
             </table>
           </div>
@@ -2106,7 +2103,7 @@
         document.getElementById('global-limit-input').value = _globalScanLimit;
 
         if (!data.batches || !data.batches.length) {
-          body.innerHTML = `<tr><td colspan="8">${emptyState('No batches yet', 'Create a batch to set per-batch scan limits.')}</td></tr>`;
+          body.innerHTML = `<tr><td colspan="6">${emptyState('No batches yet', 'Create a batch to set per-batch scan limits.')}</td></tr>`;
           return;
         }
 
@@ -2117,78 +2114,98 @@
           const overrideCount = b.serial_overrides || 0;
           const isExpanded    = _limitsExpanded.has(b.batch_code);
 
-          const limitBadge = hasOverride
-            ? `<span style="font-weight:700;color:#6366F1;font-size:14px;">${b.scan_limit}</span>
-               <span style="font-size:11px;color:var(--text-muted);margin-left:4px;">override</span>`
-            : `<span style="color:var(--text-muted);font-size:13px;">—</span>
-               <span style="font-size:11px;color:var(--text-muted);margin-left:4px;">global</span>`;
+          const effectiveCell = hasOverride
+            ? `<div style="display:flex;align-items:baseline;gap:6px;">
+                 <span style="font-size:20px;font-weight:800;color:#6366F1;letter-spacing:-0.02em;">${effective}</span>
+                 <span style="font-size:10px;font-weight:700;color:#6366F1;background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.2);padding:1px 6px;border-radius:4px;white-space:nowrap;">batch override</span>
+               </div>`
+            : `<div style="display:flex;align-items:baseline;gap:6px;">
+                 <span style="font-size:20px;font-weight:800;color:var(--text-primary);letter-spacing:-0.02em;">${effective}</span>
+                 <span style="font-size:10px;color:var(--text-muted);white-space:nowrap;">global</span>
+               </div>`;
 
-          const overrideBadge = overrideCount > 0
-            ? `<span style="display:inline-flex;align-items:center;gap:4px;background:rgba(99,102,241,0.1);color:#6366F1;font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;cursor:pointer;" onclick="toggleLimitExpand('${esc(b.batch_code)}')">
-                ${overrideCount} serial${overrideCount === 1 ? '' : 's'}
-              </span>`
-            : `<span style="color:var(--text-muted);font-size:12px;">none</span>`;
+          const overrideCell = overrideCount > 0
+            ? `<button onclick="toggleLimitExpand('${esc(b.batch_code)}')"
+                 style="display:inline-flex;align-items:center;gap:5px;background:rgba(99,102,241,0.08);color:#6366F1;border:1px solid rgba(99,102,241,0.2);font-size:12px;font-weight:700;padding:4px 10px;border-radius:6px;cursor:pointer;font-family:inherit;">
+                 <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+                 ${overrideCount} serial${overrideCount === 1 ? '' : 's'}
+               </button>`
+            : `<button onclick="toggleLimitExpand('${esc(b.batch_code)}')"
+                 style="display:inline-flex;align-items:center;gap:5px;background:none;color:var(--text-muted);border:1px dashed var(--border);font-size:11px;font-weight:600;padding:4px 10px;border-radius:6px;cursor:pointer;font-family:inherit;">
+                 <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+                 Add range
+               </button>`;
 
-          rows.push(`<tr id="lrow-${esc(b.batch_code)}">
-            <td style="width:32px;padding:0 4px 0 12px;">
-              <button onclick="toggleLimitExpand('${esc(b.batch_code)}')"
-                style="background:none;border:none;cursor:pointer;padding:4px;color:var(--text-muted);font-size:14px;line-height:1;transition:transform .15s;"
-                id="lrow-chevron-${esc(b.batch_code)}">${isExpanded ? '▾' : '▸'}</button>
+          rows.push(`<tr id="lrow-${esc(b.batch_code)}" style="border-bottom:${isExpanded ? 'none' : ''};">
+            <td style="padding:0 0 0 14px;width:36px;">
+              <button id="lrow-chevron-${esc(b.batch_code)}" onclick="toggleLimitExpand('${esc(b.batch_code)}')"
+                style="background:none;border:none;cursor:pointer;width:26px;height:26px;display:flex;align-items:center;justify-content:center;border-radius:4px;color:var(--text-muted);font-size:13px;transition:background .12s;"
+                onmouseover="this.style.background='var(--gray-100)'" onmouseout="this.style.background='none'">${isExpanded ? '▾' : '▸'}</button>
             </td>
-            <td class="mono" style="font-weight:700;">${esc(b.batch_code)}</td>
-            <td style="color:var(--text-secondary);max-width:160px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(b.product_name || '—')}</td>
-            <td>${fmt(b.total)}</td>
-            <td>${limitBadge}</td>
-            <td>${overrideBadge}</td>
-            <td style="font-weight:700;font-size:15px;color:var(--text-primary);">${effective}</td>
+            <td>
+              <div style="font-weight:700;font-size:13px;color:var(--text-primary);font-family:monospace;letter-spacing:.02em;">${esc(b.batch_code)}</div>
+              <div style="font-size:11px;color:var(--text-muted);margin-top:1px;max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(b.product_name || '—')}</div>
+            </td>
+            <td style="font-size:13px;color:var(--text-secondary);">${fmt(b.total)}</td>
+            <td>${effectiveCell}</td>
+            <td>${overrideCell}</td>
             <td>
               <div style="display:flex;align-items:center;gap:6px;">
-                <input type="number" min="1" max="999"
-                  id="limit-input-${esc(b.batch_code)}"
-                  placeholder="${effective}"
-                  value="${hasOverride ? b.scan_limit : ''}"
-                  style="width:60px;height:28px;padding:0 6px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;font-size:13px;font-weight:600;text-align:center;outline:none;" />
+                <input type="number" min="1" max="999" id="limit-input-${esc(b.batch_code)}"
+                  placeholder="${effective}" value="${hasOverride ? b.scan_limit : ''}"
+                  style="width:62px;height:30px;padding:0 8px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;font-size:13px;font-weight:600;text-align:center;outline:none;" />
                 <button class="btn btn-primary btn-sm" onclick="saveBatchLimit('${esc(b.batch_code)}')">Set</button>
-                ${hasOverride ? `<button class="btn btn-ghost btn-sm" onclick="resetBatchLimit('${esc(b.batch_code)}')">Reset</button>` : ''}
+                ${hasOverride ? `<button class="btn btn-ghost btn-sm" style="color:var(--text-muted);font-size:11px;" onclick="resetBatchLimit('${esc(b.batch_code)}')">Reset</button>` : ''}
               </div>
             </td>
           </tr>`);
 
-          // expanded serial-limits sub-panel
-          rows.push(`<tr id="lexpand-${esc(b.batch_code)}" style="${isExpanded ? '' : 'display:none;'}">
-            <td colspan="8" style="padding:0;border-top:none;">
-              <div style="margin:0 12px 12px 44px;background:var(--bg-alt,#F8F9FC);border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;">
-                <div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
-                  <span style="font-size:12px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.06em;">Serial Range Overrides</span>
-                  <div style="display:flex;align-items:center;gap:6px;">
-                    <span style="font-size:12px;color:var(--text-muted);">From</span>
-                    <input type="number" min="1" id="lnew-from-${esc(b.batch_code)}" placeholder="1"
-                      style="width:72px;height:28px;padding:0 6px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;font-size:13px;text-align:center;outline:none;" />
-                    <span style="font-size:12px;color:var(--text-muted);">To</span>
-                    <input type="number" min="1" id="lnew-to-${esc(b.batch_code)}" placeholder="${fmt(b.total)}"
-                      style="width:72px;height:28px;padding:0 6px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;font-size:13px;text-align:center;outline:none;" />
-                    <span style="font-size:12px;color:var(--text-muted);">Limit</span>
-                    <input type="number" min="1" max="999" id="lnew-limit-${esc(b.batch_code)}" placeholder="${effective}"
-                      style="width:60px;height:28px;padding:0 6px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;font-size:13px;text-align:center;outline:none;" />
-                    <button class="btn btn-primary btn-sm" onclick="addSerialLimit('${esc(b.batch_code)}')">Apply</button>
+          // Expanded serial-range panel
+          rows.push(`<tr id="lexpand-${esc(b.batch_code)}" style="${isExpanded ? '' : 'display:none;'}background:var(--bg-alt,#FAFBFC);">
+            <td colspan="6" style="padding:0 16px 16px 52px;border-top:none;">
+              <div style="border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;background:var(--white);">
+
+                <!-- Add range form -->
+                <div style="padding:14px 16px;background:var(--bg-alt,#F9FAFB);border-bottom:1px solid var(--border);">
+                  <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px;">Apply limit to serial range</div>
+                  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                    <label style="display:flex;flex-direction:column;gap:3px;">
+                      <span style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;">From seq</span>
+                      <input type="number" min="1" id="lnew-from-${esc(b.batch_code)}" placeholder="1"
+                        style="width:80px;height:32px;padding:0 8px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;font-size:13px;font-weight:600;text-align:center;outline:none;" />
+                    </label>
+                    <span style="color:var(--text-muted);font-size:16px;margin-top:16px;">→</span>
+                    <label style="display:flex;flex-direction:column;gap:3px;">
+                      <span style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;">To seq</span>
+                      <input type="number" min="1" id="lnew-to-${esc(b.batch_code)}" placeholder="${b.total}"
+                        style="width:80px;height:32px;padding:0 8px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;font-size:13px;font-weight:600;text-align:center;outline:none;" />
+                    </label>
+                    <div style="width:1px;height:32px;background:var(--border);margin-top:16px;"></div>
+                    <label style="display:flex;flex-direction:column;gap:3px;">
+                      <span style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;">Scan limit</span>
+                      <input type="number" min="1" max="999" id="lnew-limit-${esc(b.batch_code)}" placeholder="${effective}"
+                        style="width:80px;height:32px;padding:0 8px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;font-size:13px;font-weight:600;text-align:center;outline:none;" />
+                    </label>
+                    <button class="btn btn-primary btn-sm" style="margin-top:16px;" onclick="addSerialLimit('${esc(b.batch_code)}')">Apply</button>
                   </div>
                 </div>
-                <div id="lserial-rows-${esc(b.batch_code)}" style="padding:8px 0;">
-                  <div style="padding:10px 16px;font-size:12px;color:var(--text-muted);">Loading…</div>
+
+                <!-- Existing range list -->
+                <div id="lserial-rows-${esc(b.batch_code)}">
+                  <div style="padding:12px 16px;font-size:12px;color:var(--text-muted);">Loading overrides…</div>
                 </div>
               </div>
             </td>
           </tr>`);
 
           if (isExpanded) {
-            // will populate after render
             setTimeout(() => renderSerialLimitGroups(b.batch_code, effective), 0);
           }
         }
 
         body.innerHTML = rows.join('');
       } catch (err) {
-        body.innerHTML = `<tr><td colspan="8" style="padding:24px;text-align:center;color:var(--text-muted);font-size:13px;">Failed to load config.</td></tr>`;
+        body.innerHTML = `<tr><td colspan="6" style="padding:24px;text-align:center;color:var(--text-muted);font-size:13px;">Failed to load config.</td></tr>`;
       }
     }
 
@@ -2215,19 +2232,46 @@
       try {
         const groups = await api(`/admin/batches/${encodeURIComponent(batchCode)}/serial-limits`);
         if (!groups || !groups.length) {
-          container.innerHTML = `<div style="padding:10px 16px;font-size:12px;color:var(--text-muted);">No serial-range overrides set. Use the form above to apply a limit to a range of serial numbers.</div>`;
+          container.innerHTML = `
+            <div style="padding:16px;display:flex;align-items:center;gap:10px;color:var(--text-muted);">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              <span style="font-size:12px;">No serial-range overrides yet. Use the form above to apply a limit to a specific range of serials.</span>
+            </div>`;
           return;
         }
-        container.innerHTML = groups.map(g => `
-          <div style="display:flex;align-items:center;gap:10px;padding:7px 16px;border-bottom:1px solid var(--border);font-size:13px;">
-            <span style="color:var(--text-muted);font-size:11px;min-width:100px;">Serials ${g.fromSeq} – ${g.toSeq}</span>
-            <span style="font-size:11px;color:var(--text-muted);">${g.count} unit${g.count === 1 ? '' : 's'}</span>
-            <span style="font-weight:700;color:#6366F1;margin-left:auto;">Limit: ${g.limit}</span>
-            <button class="btn btn-ghost btn-sm" style="font-size:11px;color:var(--red);"
-              onclick="clearSerialLimitRange('${esc(batchCode)}', ${g.fromSeq}, ${g.toSeq})">Clear</button>
-          </div>`).join('');
+        container.innerHTML = `
+          <table style="width:100%;border-collapse:collapse;">
+            <thead>
+              <tr style="background:var(--bg-alt,#F9FAFB);">
+                <th style="padding:8px 16px;font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;text-align:left;border-bottom:1px solid var(--border);">Serial Range</th>
+                <th style="padding:8px 16px;font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;text-align:left;border-bottom:1px solid var(--border);">Count</th>
+                <th style="padding:8px 16px;font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;text-align:left;border-bottom:1px solid var(--border);">Scan Limit</th>
+                <th style="padding:8px 16px;border-bottom:1px solid var(--border);"></th>
+              </tr>
+            </thead>
+            <tbody>
+              ${groups.map((g, i) => `
+                <tr style="border-bottom:${i < groups.length - 1 ? '1px solid var(--border)' : 'none'};">
+                  <td style="padding:10px 16px;">
+                    <span style="font-family:monospace;font-size:13px;font-weight:700;color:var(--text-primary);">${String(g.fromSeq).padStart(5,'0')}</span>
+                    <span style="color:var(--text-muted);margin:0 6px;">→</span>
+                    <span style="font-family:monospace;font-size:13px;font-weight:700;color:var(--text-primary);">${String(g.toSeq).padStart(5,'0')}</span>
+                  </td>
+                  <td style="padding:10px 16px;font-size:12px;color:var(--text-secondary);">${g.count} unit${g.count === 1 ? '' : 's'}</td>
+                  <td style="padding:10px 16px;">
+                    <span style="display:inline-flex;align-items:center;gap:5px;background:rgba(99,102,241,0.08);color:#6366F1;border:1px solid rgba(99,102,241,0.2);font-size:12px;font-weight:700;padding:3px 10px;border-radius:6px;">${g.limit} scans</span>
+                  </td>
+                  <td style="padding:10px 16px;text-align:right;">
+                    <button onclick="clearSerialLimitRange('${esc(batchCode)}', ${g.fromSeq}, ${g.toSeq})"
+                      style="background:none;border:1px solid var(--border);color:var(--text-muted);font-family:inherit;font-size:11px;font-weight:600;padding:4px 10px;border-radius:5px;cursor:pointer;"
+                      onmouseover="this.style.color='var(--red)';this.style.borderColor='var(--red)'"
+                      onmouseout="this.style.color='var(--text-muted)';this.style.borderColor='var(--border)'">Clear</button>
+                  </td>
+                </tr>`).join('')}
+            </tbody>
+          </table>`;
       } catch {
-        container.innerHTML = `<div style="padding:10px 16px;font-size:12px;color:var(--text-muted);">Failed to load serial overrides.</div>`;
+        container.innerHTML = `<div style="padding:12px 16px;font-size:12px;color:var(--text-muted);">Failed to load serial overrides.</div>`;
       }
     }
 
