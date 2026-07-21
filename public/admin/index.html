@@ -1236,6 +1236,12 @@
 
     // ── Auth ───────────────────────────────────────────────────────
     function init() {
+      // Hash-based navigation — runs first, before auth path diverges
+      const hash = window.location.hash.replace('#', '');
+      if (['dashboard','batches','scans','alerts','network','limits'].includes(hash)) {
+        switchSection(hash);
+      }
+
       // Key is injected by server — no manual entry needed
       const autoKey = window.__ADMIN_KEY__;
       if (autoKey) {
@@ -1254,12 +1260,6 @@
         adminKey = stored;
         document.getElementById('sidebar-key').textContent = stored.slice(0, 10) + '…';
         afterAuth();
-      }
-
-      // Hash-based navigation
-      const hash = window.location.hash.replace('#', '');
-      if (['dashboard','batches','scans','alerts'].includes(hash)) {
-        switchSection(hash);
       }
 
       document.getElementById('key-input').addEventListener('keydown', e => {
