@@ -308,19 +308,22 @@
       position: relative;
     }
 
-    /* Map + panel flex row */
-    #map-row { display:flex; gap:20px; margin-bottom:28px; align-items:stretch; }
+    /* Map row — single card, panel overlays from inside */
+    #map-row { margin-bottom:28px; }
     #map-scan-panel {
       display: none;
       flex-direction: column;
-      width: 370px;
-      flex-shrink: 0;
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: 340px;
+      height: 100%;
+      z-index: 400;
       background: var(--white);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-md);
-      box-shadow: var(--shadow-soft);
+      border-left: 1px solid var(--border);
+      box-shadow: -4px 0 24px rgba(0,0,0,0.10);
+      border-radius: 0 var(--radius-md) var(--radius-md) 0;
       overflow: hidden;
-      min-height: 0;
     }
     #map-panel-body { overflow-y:auto; flex:1; min-height:0; }
     #map-panel-body::-webkit-scrollbar { width:3px; }
@@ -829,8 +832,8 @@
         </div>
 
         <div id="map-row">
-          <!-- Full-width map card -->
-          <div class="map-card" style="flex:1;min-width:0;">
+          <!-- Full-width map card — panel overlays inside -->
+          <div class="map-card">
             <div class="card-header">
               <span class="card-title">Scan Map</span>
               <span class="card-meta" id="map-count-label">Last 500 scans</span>
@@ -850,9 +853,8 @@
               <div class="legend-item"><div class="legend-dot" style="background:#F59E0B"></div>Warning</div>
               <div class="legend-item"><div class="legend-dot" style="background:#EF4444"></div>Fake</div>
             </div>
-          </div>
 
-          <!-- Scan detail panel — hidden until cluster/marker clicked -->
+          <!-- Scan detail panel — absolute overlay from right, hidden until cluster/marker clicked -->
           <div id="map-scan-panel">
 
             <!-- Header -->
@@ -890,8 +892,9 @@
             <!-- Scrollable scan list -->
             <div id="map-panel-body"></div>
 
-          </div>
-        </div>
+          </div><!-- /#map-scan-panel -->
+          </div><!-- /.map-card -->
+        </div><!-- /#map-row -->
 
         <!-- Geographic breakdown -->
         <div class="table-card" style="margin-bottom:20px;">
@@ -1796,8 +1799,6 @@
         scans.length === 1 ? '1 scan at this location' : `${scans.length} scans at this location`;
 
       document.getElementById('map-scan-panel').style.display = 'flex';
-      if (mapInstance) setTimeout(() => mapInstance.invalidateSize(), 50);
-
       renderPanelList();
     }
 
@@ -1860,7 +1861,6 @@
       document.getElementById('map-scan-panel').style.display = 'none';
       _panelScans  = [];
       _panelFilter = 'all';
-      if (mapInstance) setTimeout(() => mapInstance.invalidateSize(), 50);
     }
 
     function selectGeoCountry(country) {
