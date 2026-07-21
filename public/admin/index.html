@@ -1278,11 +1278,12 @@
 
     function afterAuth() {
       loadAnalytics();
-      loadDashboard();
       // Honour any hash from sidebar links on other pages (e.g. batch-detail)
       const hash = window.location.hash.replace('#', '');
-      if (['batches','scans','alerts','network','limits'].includes(hash)) {
+      if (['dashboard','batches','scans','alerts','network','limits'].includes(hash)) {
         switchSection(hash);
+      } else {
+        switchSection('dashboard');
       }
     }
 
@@ -1316,6 +1317,7 @@
 
       if (!loadedSections.has(name)) {
         loadedSections.add(name);
+        if (name === 'dashboard') loadDashboard();
         if (name === 'batches')  loadBatches();
         if (name === 'scans')    loadScans();
         if (name === 'alerts')   loadAlerts();
