@@ -760,10 +760,10 @@
              Scanned ${prevScans === 1 ? '1 time' : prevScans + ' times'} previously
            </div>`;
 
+      const remarkBorderColor = s === 'verified' ? '#22C55E' : s === 'warning' ? '#F59E0B' : '#9CA3AF';
       const remarkBlock = remarkText
-        ? `<div style="margin-top:16px;padding:14px 16px;background:#F0F9FF;border:1px solid #BAE6FD;border-radius:8px;">
-             <div style="font-size:10px;font-weight:700;color:#0284C7;letter-spacing:.08em;text-transform:uppercase;margin-bottom:4px;">Note</div>
-             <div style="font-size:14px;color:#0C4A6E;line-height:1.5;">${esc(remarkText)}</div>
+        ? `<div style="margin-top:22px;padding:16px 20px;border-left:4px solid ${remarkBorderColor};border-radius:0 10px 10px 0;background:#FAFAFA;">
+             <div style="font-size:17px;font-weight:700;color:var(--black);line-height:1.45;letter-spacing:-0.01em;">${esc(remarkText)}</div>
            </div>`
         : '';
 

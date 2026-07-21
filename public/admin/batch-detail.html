@@ -450,6 +450,8 @@
 <script>
   const adminKey  = window.__ADMIN_KEY__ || '';
   const batchCode = decodeURIComponent(window.location.pathname.split('/').pop());
+  let _batchScanLimit  = null; // set by loadBatchDetail
+  let _globalScanLimit = 1;   // set by loadGlobalLimit
 
   document.getElementById('sidebar-key').textContent = adminKey ? adminKey.slice(0,10) + '…' : '—';
 
@@ -489,6 +491,14 @@
     return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 
+  // ── Load global scan limit ─────────────────────────────────────────
+  async function loadGlobalLimit() {
+    try {
+      const data = await api('/admin/config');
+      _globalScanLimit = data.scan_limit_default || 1;
+    } catch (_) {}
+  }
+
   // ── Load batch detail ──────────────────────────────────────────────
   async function loadBatchDetail() {
     try {
@@ -497,6 +507,8 @@
       document.getElementById('page-batch-code').textContent  = batchCode;
       document.getElementById('page-product-name').textContent = batch.product_name ? '· ' + batch.product_name : '';
       document.title = batchCode + ' — Admin';
+
+      _batchScanLimit = stats.scan_limit ?? null;
 
       document.getElementById('stat-total').textContent   = (stats.total || 0).toLocaleString();
       document.getElementById('stat-scans').textContent   = (stats.totalScans || 0).toLocaleString();
@@ -549,22 +561,35 @@
         return;
       }
 
+      const effectiveLimit = _batchScanLimit ?? _globalScanLimit;
+
       tbody.innerHTML = rows.map(r => {
-        const seq    = r.seq != null ? String(r.seq).padStart(5, '0') : '—';
-        const status = r.is_active
+        const seq      = r.seq != null ? String(r.seq).padStart(5, '0') : '—';
+        const exceeded = r.scan_count >= effectiveLimit;
+        const rowStyle = exceeded ? 'background:rgba(220,38,38,0.04);' : '';
+        const status   = r.is_active
           ? '<span class="badge badge-active">Active</span>'
           : '<span class="badge badge-recalled">Recalled</span>';
-        const remark = r.remark
+        const remark   = r.remark
           ? `<span class="remark-pill" title="${esc(r.remark)}">${esc(r.remark)}</span>`
           : `<span style="color:var(--text-muted);font-size:12px;">—</span>`;
-        const scans  = r.scan_count > 0
-          ? `<span style="font-weight:600;color:var(--text-primary);">${r.scan_count}</span>`
-          : `<span style="color:var(--text-muted);">0</span>`;
-        return `<tr>
+
+        let scansHtml;
+        if (r.scan_count === 0) {
+          scansHtml = `<span style="color:var(--text-muted);">0</span>`;
+        } else if (exceeded) {
+          scansHtml = `<span style="font-weight:700;color:#DC2626;">${r.scan_count}</span>
+            <span style="font-size:10px;font-weight:700;color:#DC2626;background:#FEE2E2;border:1px solid #FECACA;border-radius:4px;padding:1px 5px;margin-left:5px;letter-spacing:.03em;">EXCEEDED</span>`;
+        } else {
+          scansHtml = `<span style="font-weight:600;color:var(--text-primary);">${r.scan_count}</span>
+            <span style="font-size:10px;color:var(--text-muted);margin-left:4px;">/ ${effectiveLimit}</span>`;
+        }
+
+        return `<tr style="${rowStyle}">
           <td><span class="seq-mono">${seq}</span></td>
           <td><span class="serial-mono" title="${esc(r.serial)}">${esc(r.serial)}</span></td>
           <td>${status}</td>
-          <td>${scans}</td>
+          <td>${scansHtml}</td>
           <td>${remark}</td>
           <td style="color:var(--text-muted);font-size:12px;">${r.remark_updated_at ? fmtDate(r.remark_updated_at) : '—'}</td>
         </tr>`;
@@ -665,6 +690,8 @@
   // ── Refresh all ────────────────────────────────────────────────────
   async function refreshAll() {
     const remarkFilter = document.getElementById('remark-filter').value;
+    // Load global limit first so serials render with correct threshold
+    await loadGlobalLimit();
     await Promise.all([loadBatchDetail(), loadSerials(remarkFilter || null), loadRemarkFilter()]);
   }
 

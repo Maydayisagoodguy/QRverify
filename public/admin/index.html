@@ -735,6 +735,10 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1.5 8.5s4-5 10.5-5 10.5 5 10.5 5"/><path d="M5 12s2.5-3.5 7-3.5 7 3.5 7 3.5"/><path d="M8.5 15.5s1.5-2 3.5-2 3.5 2 3.5 2"/><circle cx="12" cy="19" r="1"/></svg>
         Network
       </button>
+      <button class="nav-item" data-section="limits">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        Scan Limits
+      </button>
     </div>
 
     <div class="sidebar-footer">
@@ -1108,6 +1112,69 @@
         </div>
       </section>
 
+      <!-- ── Scan Limits ────────────────────────────────────────────── -->
+      <section class="section" id="section-limits">
+        <div class="section-header">
+          <div>
+            <div class="section-eyebrow">Configuration</div>
+            <span class="section-title">Scan Limits</span>
+          </div>
+        </div>
+
+        <!-- Global default card -->
+        <div class="table-card" style="margin-bottom:20px;">
+          <div class="card-header">
+            <div>
+              <span class="card-title">Global Default</span>
+              <div style="font-size:12px;color:var(--text-muted);margin-top:3px;">Applies to all batches unless overridden individually.</div>
+            </div>
+          </div>
+          <div style="padding:24px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+            <div style="flex:1;min-width:200px;">
+              <div style="font-size:13px;color:var(--text-secondary);margin-bottom:8px;">A product QR can be scanned this many times before showing a <strong>Duplicate Scan</strong> warning to the customer.</div>
+              <div style="font-size:11px;color:var(--text-muted);">Set to <strong>1</strong> for maximum anti-counterfeiting. Set higher for products that may be scanned at retail, customs, or multiple checkpoints.</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
+              <div style="text-align:center;">
+                <div style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">Current limit</div>
+                <div id="global-limit-display" style="font-size:40px;font-weight:700;letter-spacing:-0.03em;color:var(--text-primary);line-height:1;">—</div>
+                <div style="font-size:11px;color:var(--text-muted);margin-top:3px;">scans per product</div>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px;margin-left:8px;">
+                <input id="global-limit-input" type="number" min="1" max="999" placeholder="e.g. 1"
+                  style="width:80px;height:38px;padding:0 10px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;font-size:14px;font-weight:600;text-align:center;outline:none;" />
+                <button class="btn btn-primary btn-sm" onclick="saveGlobalLimit()">Save</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Per-batch overrides -->
+        <div class="table-card">
+          <div class="card-header">
+            <span class="card-title">Per-Batch Overrides</span>
+            <span class="card-meta">Override the global limit for specific batches</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Batch Code</th>
+                  <th>Product</th>
+                  <th>Units</th>
+                  <th>Scan Limit</th>
+                  <th>Effective</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="limits-body">
+                <tr class="loading-row"><td colspan="6"><div class="spinner" style="margin:0 auto;"></div></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
     </div><!-- /content -->
   </div><!-- /main -->
 
@@ -1188,10 +1255,11 @@
       scans:     'Scan Logs',
       alerts:    'Alerts',
       network:   'Network & Carriers',
+      limits:    'Scan Limits',
     };
 
     function switchSection(name) {
-      if (!['dashboard','batches','scans','alerts','network'].includes(name)) name = 'dashboard';
+      if (!['dashboard','batches','scans','alerts','network','limits'].includes(name)) name = 'dashboard';
 
       document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
       document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
@@ -1214,6 +1282,7 @@
         if (name === 'scans')    loadScans();
         if (name === 'alerts')   loadAlerts();
         if (name === 'network')  loadNetworkSection();
+        if (name === 'limits')   loadLimits();
       }
     }
 
@@ -1888,6 +1957,100 @@
     window.addEventListener('resize', () => {
       if (mapInstance) mapInstance.invalidateSize();
     });
+
+    // ── Scan Limits ────────────────────────────────────────────────
+    let _globalScanLimit = 1;
+
+    async function loadLimits() {
+      const body = document.getElementById('limits-body');
+      try {
+        const data = await api('/admin/config');
+        _globalScanLimit = data.scan_limit_default || 1;
+        document.getElementById('global-limit-display').textContent = _globalScanLimit;
+        document.getElementById('global-limit-input').value = _globalScanLimit;
+
+        if (!data.batches || !data.batches.length) {
+          body.innerHTML = `<tr><td colspan="6">${emptyState('No batches yet', 'Create a batch to set per-batch scan limits.')}</td></tr>`;
+          return;
+        }
+
+        body.innerHTML = data.batches.map(b => {
+          const hasOverride = b.scan_limit !== null;
+          const effective   = b.scan_limit ?? _globalScanLimit;
+          const limitBadge  = hasOverride
+            ? `<span style="font-weight:700;color:var(--red);font-size:14px;">${b.scan_limit}</span>
+               <span style="font-size:11px;color:var(--text-muted);margin-left:4px;">override</span>`
+            : `<span style="color:var(--text-muted);font-size:13px;">—</span>
+               <span style="font-size:11px;color:var(--text-muted);margin-left:4px;">global</span>`;
+          return `<tr id="limit-row-${esc(b.batch_code)}">
+            <td class="mono" style="font-weight:600;">${esc(b.batch_code)}</td>
+            <td style="color:var(--text-secondary);">${esc(b.product_name || '—')}</td>
+            <td>${fmt(b.total)}</td>
+            <td>${limitBadge}</td>
+            <td style="font-weight:700;font-size:15px;color:var(--text-primary);">${effective}</td>
+            <td>
+              <div style="display:flex;align-items:center;gap:6px;">
+                <input type="number" min="1" max="999"
+                  id="limit-input-${esc(b.batch_code)}"
+                  placeholder="${effective}"
+                  value="${hasOverride ? b.scan_limit : ''}"
+                  style="width:68px;height:30px;padding:0 8px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;font-size:13px;font-weight:600;text-align:center;outline:none;" />
+                <button class="btn btn-primary btn-sm" onclick="saveBatchLimit('${esc(b.batch_code)}')">Set</button>
+                ${hasOverride ? `<button class="btn btn-ghost btn-sm" onclick="resetBatchLimit('${esc(b.batch_code)}')">Reset</button>` : ''}
+              </div>
+            </td>
+          </tr>`;
+        }).join('');
+      } catch (err) {
+        body.innerHTML = `<tr><td colspan="6" style="padding:24px;text-align:center;color:var(--text-muted);font-size:13px;">Failed to load config.</td></tr>`;
+      }
+    }
+
+    async function saveGlobalLimit() {
+      const val = parseInt(document.getElementById('global-limit-input').value, 10);
+      if (!val || val < 1 || val > 999) { toast('Enter a value between 1 and 999', 'error'); return; }
+      try {
+        await api('/admin/config', { method: 'POST', body: { key: 'scan_limit_default', value: val } });
+        _globalScanLimit = val;
+        document.getElementById('global-limit-display').textContent = val;
+        toast(`Global scan limit set to ${val}`, 'success');
+        loadedSections.delete('limits');
+        loadLimits();
+      } catch (err) {
+        toast('Failed: ' + err.message, 'error');
+      }
+    }
+
+    async function saveBatchLimit(batchCode) {
+      const input = document.getElementById(`limit-input-${batchCode}`);
+      const val   = parseInt(input.value, 10);
+      if (!val || val < 1 || val > 999) { toast('Enter a value between 1 and 999', 'error'); return; }
+      try {
+        await api(`/admin/batches/${encodeURIComponent(batchCode)}/scan-limit`, {
+          method: 'PATCH',
+          body: { scan_limit: val },
+        });
+        toast(`Batch ${batchCode} limit set to ${val}`, 'success');
+        loadedSections.delete('limits');
+        loadLimits();
+      } catch (err) {
+        toast('Failed: ' + err.message, 'error');
+      }
+    }
+
+    async function resetBatchLimit(batchCode) {
+      try {
+        await api(`/admin/batches/${encodeURIComponent(batchCode)}/scan-limit`, {
+          method: 'PATCH',
+          body: { scan_limit: null },
+        });
+        toast(`Batch ${batchCode} reset to global default`, 'success');
+        loadedSections.delete('limits');
+        loadLimits();
+      } catch (err) {
+        toast('Failed: ' + err.message, 'error');
+      }
+    }
 
     init();
   </script>

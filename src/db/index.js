@@ -7,6 +7,32 @@ const db = createClient(config.supabaseUrl, config.supabaseServiceKey, {
   auth: { persistSession: false },
 });
 
+// ── Config ────────────────────────────────────────────────────────
+
+let _configCache = {};
+let _configFetchedAt = 0;
+
+async function getConfigValue(key, fallback = null) {
+  const now = Date.now();
+  if (now - _configFetchedAt > 60000) {
+    const { data } = await db.from('config').select('key, value');
+    _configCache = Object.fromEntries((data || []).map(r => [r.key, r.value]));
+    _configFetchedAt = now;
+  }
+  const v = _configCache[key];
+  return v !== undefined ? v : fallback;
+}
+
+async function setConfigValue(key, value) {
+  const { error } = await db.from('config').upsert(
+    { key, value: String(value), updated_at: new Date().toISOString() },
+    { onConflict: 'key' }
+  );
+  if (error) throw error;
+  _configCache[key] = String(value);
+  _configFetchedAt = 0; // force refresh next call
+}
+
 // ── Batches ───────────────────────────────────────────────────────
 
 async function upsertBatch({ batchCode, productName, manufacturer, countryOfOrigin, distributor, regionExpected, productImageUrl, targetCountry }) {
@@ -26,7 +52,7 @@ async function upsertBatch({ batchCode, productName, manufacturer, countryOfOrig
 async function getBatches() {
   const { data: rows, error } = await db
     .from('batches')
-    .select('batch_code, product_name, total_units, active_units, created_at, status, target_country')
+    .select('batch_code, product_name, total_units, active_units, created_at, status, target_country, scan_limit')
     .order('created_at', { ascending: false });
   if (error) throw error;
   if (!rows?.length) return [];
@@ -61,8 +87,27 @@ async function getBatches() {
     created_at:     r.created_at,
     status:         r.status,
     target_country: r.target_country || null,
+    scan_limit:     r.scan_limit ?? null,
     scans:          batchScanCount[r.batch_code] || 0,
   }));
+}
+
+async function getBatchById(batchCode) {
+  const { data, error } = await db
+    .from('batches')
+    .select('batch_code, product_name, scan_limit, target_country')
+    .eq('batch_code', batchCode)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+async function setScanLimitForBatch(batchCode, limit) {
+  const { error } = await db
+    .from('batches')
+    .update({ scan_limit: limit })
+    .eq('batch_code', batchCode);
+  if (error) throw error;
 }
 
 // ── Products ──────────────────────────────────────────────────────
@@ -229,6 +274,7 @@ async function getBatchDetail(batchCode) {
       totalScans,
       remarkCount,
       maxSeq:      products.length ? Math.max(...products.map(p => p.seq || 0)) : 0,
+      scan_limit:  batch.scan_limit ?? null,
     },
   };
 }
@@ -473,9 +519,14 @@ async function getMapData(limit = 500) {
 }
 
 module.exports = {
+  // Config
+  getConfigValue,
+  setConfigValue,
   // Batches
   upsertBatch,
   getBatches,
+  getBatchById,
+  setScanLimitForBatch,
   // Products
   getProduct,
   insertProducts,

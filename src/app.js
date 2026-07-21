@@ -90,6 +90,7 @@ fastify.register(require('./routes/admin/batches'),    { prefix: '/admin' });
 fastify.register(require('./routes/admin/scans'),      { prefix: '/admin' });
 fastify.register(require('./routes/admin/alerts'),     { prefix: '/admin' });
 fastify.register(require('./routes/admin/analytics'),  { prefix: '/admin' });
+fastify.register(require('./routes/admin/config'),     { prefix: '/admin' });
 
 // ── Health check ──────────────────────────────────────────────────
 fastify.get('/health', async () => ({ status: 'ok' }));
