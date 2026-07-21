@@ -1221,8 +1221,16 @@
     });
 
     // ── API helper ─────────────────────────────────────────────────
-    async function api(path) {
-      const res = await fetch(path, { headers: { 'x-admin-key': adminKey } });
+    async function api(path, opts = {}) {
+      const res = await fetch(path, {
+        ...opts,
+        headers: {
+          'x-admin-key': adminKey,
+          ...(opts.body ? { 'Content-Type': 'application/json' } : {}),
+          ...(opts.headers || {}),
+        },
+        body: opts.body ? JSON.stringify(opts.body) : undefined,
+      });
       if (res.status === 401) { logout(); throw new Error('Unauthorized'); }
       if (!res.ok) throw new Error(await res.text());
       return res.json();
