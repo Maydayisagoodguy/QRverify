@@ -313,17 +313,23 @@
     #map-scan-panel {
       display: none;
       flex-direction: column;
-      width: 380px;
+      width: 370px;
       flex-shrink: 0;
       background: var(--white);
       border: 1px solid var(--border);
       border-radius: var(--radius-md);
       box-shadow: var(--shadow-soft);
       overflow: hidden;
+      min-height: 0;
     }
-    #map-panel-body { overflow-y:auto; flex:1; }
-    #map-panel-body::-webkit-scrollbar { width:4px; }
+    #map-panel-body { overflow-y:auto; flex:1; min-height:0; }
+    #map-panel-body::-webkit-scrollbar { width:3px; }
     #map-panel-body::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
+    .panel-scan-card { padding:10px 14px; border-bottom:1px solid var(--border); cursor:default; transition:background 0.12s; }
+    .panel-scan-card:hover { background:var(--gray-fafa,#fafafa); }
+    .panel-scan-card:last-child { border-bottom:none; }
+    #panel-search { width:100%; box-sizing:border-box; height:32px; padding:0 10px 0 32px; border:1px solid var(--border); border-radius:var(--radius-sm); font-size:12px; background:var(--bg-card,#fff); color:var(--text-primary); outline:none; }
+    #panel-search:focus { border-color:var(--red,#B81F24); }
 
     .card-header {
       display: flex;
@@ -848,28 +854,42 @@
 
           <!-- Scan detail panel — hidden until cluster/marker clicked -->
           <div id="map-scan-panel">
+
             <!-- Header -->
-            <div class="card-header" style="flex-shrink:0;">
+            <div style="padding:13px 16px 11px;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;justify-content:space-between;flex-shrink:0;">
               <div>
-                <div style="font-size:13px;font-weight:700;color:var(--text-primary);" id="map-panel-title">Scans</div>
-                <div style="font-size:11px;color:var(--text-muted);margin-top:1px;" id="map-panel-count">—</div>
+                <div id="map-panel-title" style="font-size:13px;font-weight:700;color:var(--text-primary);line-height:1.3;">Scans at location</div>
+                <div id="map-panel-count" style="font-size:11px;color:var(--text-muted);margin-top:2px;">—</div>
               </div>
-              <button onclick="closeMapPanel()" style="width:28px;height:28px;border:none;background:var(--gray-100,#f3f4f6);cursor:pointer;color:var(--text-secondary);font-size:16px;border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">×</button>
+              <button onclick="closeMapPanel()" title="Close" style="width:26px;height:26px;border:none;background:var(--gray-100,#f3f4f6);cursor:pointer;color:var(--text-muted);font-size:15px;border-radius:5px;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-left:8px;">×</button>
             </div>
-            <!-- Filters -->
-            <div style="padding:10px 14px;border-bottom:1px solid var(--border);display:flex;flex-direction:column;gap:8px;flex-shrink:0;">
-              <div style="display:flex;gap:4px;">
-                <button class="map-filter-btn active" data-panel-filter="all"      onclick="setPanelFilter('all')">All</button>
-                <button class="map-filter-btn"        data-panel-filter="verified" onclick="setPanelFilter('verified')">Verified</button>
-                <button class="map-filter-btn"        data-panel-filter="warning"  onclick="setPanelFilter('warning')">Warning</button>
-                <button class="map-filter-btn"        data-panel-filter="fake"     onclick="setPanelFilter('fake')">Fake</button>
+
+            <!-- Search -->
+            <div style="padding:9px 14px;border-bottom:1px solid var(--border);flex-shrink:0;">
+              <div style="position:relative;">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--text-muted);pointer-events:none;"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <input id="panel-search" type="text" placeholder="Search serial or product…" oninput="renderPanelList()" autocomplete="off" />
               </div>
-              <select id="panel-batch-filter" onchange="renderPanelList()" style="height:30px;padding:0 10px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-card,#fff);color:var(--text-primary);font-size:12px;width:100%;cursor:pointer;">
+            </div>
+
+            <!-- Result filter tabs -->
+            <div style="padding:8px 14px;border-bottom:1px solid var(--border);display:flex;gap:4px;flex-shrink:0;">
+              <button class="map-filter-btn active" data-panel-filter="all"      onclick="setPanelFilter('all')">All</button>
+              <button class="map-filter-btn"        data-panel-filter="verified" onclick="setPanelFilter('verified')">Verified</button>
+              <button class="map-filter-btn"        data-panel-filter="warning"  onclick="setPanelFilter('warning')">Warning</button>
+              <button class="map-filter-btn"        data-panel-filter="fake"     onclick="setPanelFilter('fake')">Fake</button>
+            </div>
+
+            <!-- Batch filter -->
+            <div style="padding:7px 14px;border-bottom:1px solid var(--border);flex-shrink:0;">
+              <select id="panel-batch-filter" onchange="renderPanelList()" style="height:30px;padding:0 10px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-card,#fff);color:var(--text-primary);font-size:12px;width:100%;cursor:pointer;outline:none;">
                 <option value="">All batches</option>
               </select>
             </div>
-            <!-- Scan list -->
+
+            <!-- Scrollable scan list -->
             <div id="map-panel-body"></div>
+
           </div>
         </div>
 
@@ -1753,17 +1773,20 @@
       _panelScans  = scans;
       _panelFilter = 'all';
 
-      // Reset result filter buttons
+      // Reset controls
+      const searchEl = document.getElementById('panel-search');
+      if (searchEl) searchEl.value = '';
       document.querySelectorAll('[data-panel-filter]').forEach(b => b.classList.remove('active'));
       const allBtn = document.querySelector('[data-panel-filter="all"]');
       if (allBtn) allBtn.classList.add('active');
 
-      // Populate batch dropdown from scans in this cluster
+      // Batch dropdown from this cluster's scans
       const batches = [...new Set(scans.map(s => s.batch_code).filter(Boolean))].sort();
       const bSel = document.getElementById('panel-batch-filter');
       if (bSel) {
         bSel.innerHTML = '<option value="">All batches</option>' +
           batches.map(b => `<option value="${esc(b)}">${esc(b)}</option>`).join('');
+        bSel.style.display = batches.length > 1 ? '' : 'none';
       }
 
       document.getElementById('map-panel-title').textContent =
@@ -1784,37 +1807,48 @@
     }
 
     function renderPanelList() {
-      const colors   = { verified: '#22C55E', warning: '#F59E0B', fake: '#EF4444', inactive: '#9CA3AF' };
-      const bFilter  = (document.getElementById('panel-batch-filter') || {}).value || '';
-      const countEl  = document.getElementById('map-panel-count');
-      const body     = document.getElementById('map-panel-body');
+      const COLORS  = { verified: '#22C55E', warning: '#F59E0B', fake: '#EF4444', inactive: '#9CA3AF' };
+      const bFilter = (document.getElementById('panel-batch-filter') || {}).value || '';
+      const q       = ((document.getElementById('panel-search') || {}).value || '').trim().toLowerCase();
+      const countEl = document.getElementById('map-panel-count');
+      const body    = document.getElementById('map-panel-body');
 
       let scans = _panelScans;
       if (_panelFilter !== 'all') scans = scans.filter(s => s.result === _panelFilter);
       if (bFilter) scans = scans.filter(s => s.batch_code === bFilter);
+      if (q) scans = scans.filter(s =>
+        (s.serial       || '').toLowerCase().includes(q) ||
+        (s.product_name || '').toLowerCase().includes(q) ||
+        (s.batch_code   || '').toLowerCase().includes(q)
+      );
 
-      if (countEl) countEl.textContent = `${scans.length} result${scans.length !== 1 ? 's' : ''}`;
+      if (countEl) countEl.textContent = `${scans.length} of ${_panelScans.length} scan${_panelScans.length !== 1 ? 's' : ''}`;
 
       if (!scans.length) {
-        body.innerHTML = `<div style="padding:32px 16px;text-align:center;color:var(--text-muted);font-size:13px;">No scans match this filter</div>`;
+        body.innerHTML = `<div style="padding:40px 20px;text-align:center;">
+          <div style="font-size:13px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">No results</div>
+          <div style="font-size:11px;color:var(--text-muted);">Try a different filter or search term</div>
+        </div>`;
         return;
       }
 
       body.innerHTML = scans.map(d => {
-        const color = colors[d.result] || '#9CA3AF';
-        const loc   = [d.city, d.country].filter(Boolean).join(', ') || 'Unknown location';
+        const color = COLORS[d.result] || '#9CA3AF';
+        const loc   = [d.city, d.country].filter(Boolean).join(', ') || '—';
         const time  = d.scanned_at ? new Date(d.scanned_at).toLocaleString('en-IN', { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' }) : '—';
-        const ser   = d.serial ? (d.serial.length > 24 ? d.serial.slice(0, 22) + '…' : d.serial) : '—';
-        return `<div style="padding:11px 14px;border-bottom:1px solid var(--border);display:flex;gap:10px;align-items:flex-start;">
-          <span style="width:8px;height:8px;border-radius:50%;background:${color};flex-shrink:0;margin-top:3px;display:block;"></span>
-          <div style="flex:1;min-width:0;">
-            <div style="font-size:12px;font-weight:700;color:var(--text-primary);margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(d.product_name || 'Unknown product')}</div>
-            <div style="font-family:monospace;font-size:10px;color:var(--text-muted);margin-bottom:4px;">${esc(ser)}</div>
-            <div style="font-size:11px;color:var(--text-secondary);margin-bottom:1px;">📦 ${esc(d.batch_code || '—')}</div>
-            <div style="font-size:11px;color:var(--text-secondary);margin-bottom:1px;">📍 ${esc(loc)}</div>
-            <div style="font-size:11px;color:var(--text-muted);">🕐 ${time}</div>
+        const ser   = d.serial ? (d.serial.length > 26 ? d.serial.slice(0, 24) + '…' : d.serial) : '—';
+        const prod  = d.product_name || 'Unknown product';
+        return `<div class="panel-scan-card">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px;">
+            <div style="font-size:12px;font-weight:700;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px;" title="${esc(prod)}">${esc(prod)}</div>
+            <span style="font-size:10px;font-weight:700;text-transform:uppercase;color:${color};padding:2px 7px;border-radius:4px;background:${color}1a;flex-shrink:0;margin-left:6px;">${esc(d.result)}</span>
           </div>
-          <span style="font-size:10px;font-weight:700;text-transform:uppercase;color:${color};flex-shrink:0;padding:2px 7px;border-radius:4px;background:${color}1a;">${esc(d.result)}</span>
+          <div style="font-family:monospace;font-size:10px;color:var(--text-muted);margin-bottom:5px;letter-spacing:0.02em;">${esc(ser)}</div>
+          <div style="display:flex;align-items:center;justify-content:space-between;">
+            <span style="font-size:11px;color:var(--text-secondary);">📍 ${esc(loc)}</span>
+            <span style="font-size:11px;color:var(--text-muted);flex-shrink:0;margin-left:8px;">${time}</span>
+          </div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">Batch: <span style="color:var(--text-secondary);font-weight:600;">${esc(d.batch_code || '—')}</span></div>
         </div>`;
       }).join('');
     }
