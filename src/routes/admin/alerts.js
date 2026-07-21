@@ -1,12 +1,11 @@
 'use strict';
 
-const adminAuth = require('../../middleware/adminAuth');
 const { adminRateLimit } = require('../../middleware/rateLimit');
-const db        = require('../../db');
+const db = require('../../db');
 
 module.exports = async function alertRoutes(fastify) {
 
-  fastify.get('/alerts', { preHandler: [adminRateLimit, adminAuth] }, async (request) => {
+  fastify.get('/alerts', { preHandler: [adminRateLimit] }, async (request) => {
     const { resolved, severity, batch, limit = '50', offset = '0' } = request.query;
     return db.getAlerts({
       resolved:  resolved !== undefined ? resolved === 'true' : undefined,
@@ -17,7 +16,7 @@ module.exports = async function alertRoutes(fastify) {
     });
   });
 
-  fastify.post('/alerts/:id/resolve', { preHandler: [adminRateLimit, adminAuth] }, async (request) => {
+  fastify.post('/alerts/:id/resolve', { preHandler: [adminRateLimit] }, async (request) => {
     const { id } = request.params;
     await db.resolveAlert(id);
     db.logAuditAction('RESOLVE_ALERT', 'alert', id, null).catch(() => {});

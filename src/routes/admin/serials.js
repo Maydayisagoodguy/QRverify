@@ -1,14 +1,12 @@
 'use strict';
 
-const adminAuth = require('../../middleware/adminAuth');
 const { adminRateLimit } = require('../../middleware/rateLimit');
-const db        = require('../../db');
+const db = require('../../db');
 
 module.exports = async function serialRoutes(fastify) {
 
-  // GET /admin/batches/:code — batch detail + stats
   fastify.get('/batches/:code', {
-    preHandler: [adminRateLimit, adminAuth],
+    preHandler: [adminRateLimit],
   }, async (request, reply) => {
     const { code } = request.params;
     const detail = await db.getBatchDetail(code);
@@ -16,9 +14,8 @@ module.exports = async function serialRoutes(fastify) {
     return detail;
   });
 
-  // GET /admin/batches/:code/serials — list all serials with scan count + remark
   fastify.get('/batches/:code/serials', {
-    preHandler: [adminRateLimit, adminAuth],
+    preHandler: [adminRateLimit],
   }, async (request, reply) => {
     const { code } = request.params;
     const { remark } = request.query;
@@ -30,9 +27,8 @@ module.exports = async function serialRoutes(fastify) {
     }
   });
 
-  // GET /admin/batches/:code/remarks — distinct remark values for dropdown
   fastify.get('/batches/:code/remarks', {
-    preHandler: [adminRateLimit, adminAuth],
+    preHandler: [adminRateLimit],
   }, async (request, reply) => {
     const { code } = request.params;
     try {
@@ -43,11 +39,10 @@ module.exports = async function serialRoutes(fastify) {
     }
   });
 
-  // POST /admin/batches/:code/serials/remark — apply remark to a seq range
   fastify.post('/batches/:code/serials/remark', {
-    preHandler: [adminRateLimit, adminAuth],
+    preHandler: [adminRateLimit],
   }, async (request, reply) => {
-    const { code }                    = request.params;
+    const { code }                     = request.params;
     const { from_seq, to_seq, remark } = request.body || {};
 
     if (!from_seq || !to_seq || !remark) {
@@ -71,9 +66,8 @@ module.exports = async function serialRoutes(fastify) {
     return { success: true };
   });
 
-  // GET /admin/batches/:code/serial-limits — grouped serial limit overrides
   fastify.get('/batches/:code/serial-limits', {
-    preHandler: [adminRateLimit, adminAuth],
+    preHandler: [adminRateLimit],
   }, async (request, reply) => {
     const { code } = request.params;
     try {
@@ -84,12 +78,11 @@ module.exports = async function serialRoutes(fastify) {
     }
   });
 
-  // POST /admin/batches/:code/serials/scan-limit — apply scan limit to a seq range
   fastify.post('/batches/:code/serials/scan-limit', {
-    preHandler: [adminRateLimit, adminAuth],
+    preHandler: [adminRateLimit],
   }, async (request, reply) => {
-    const { code }                     = request.params;
-    const { from_seq, to_seq, limit }  = request.body || {};
+    const { code }                    = request.params;
+    const { from_seq, to_seq, limit } = request.body || {};
 
     if (!from_seq || !to_seq || limit === undefined) {
       return reply.code(400).send({ error: 'from_seq, to_seq and limit are required', code: 'MISSING_PARAM' });
@@ -113,9 +106,8 @@ module.exports = async function serialRoutes(fastify) {
     return { success: true };
   });
 
-  // DELETE /admin/batches/:code/serials/scan-limit — reset limit for a seq range
   fastify.delete('/batches/:code/serials/scan-limit', {
-    preHandler: [adminRateLimit, adminAuth],
+    preHandler: [adminRateLimit],
   }, async (request, reply) => {
     const { code }             = request.params;
     const { from_seq, to_seq } = request.body || {};
@@ -135,12 +127,11 @@ module.exports = async function serialRoutes(fastify) {
     return { success: true };
   });
 
-  // DELETE /admin/batches/:code/serials/remark — clear remark for a seq range
   fastify.delete('/batches/:code/serials/remark', {
-    preHandler: [adminRateLimit, adminAuth],
+    preHandler: [adminRateLimit],
   }, async (request, reply) => {
-    const { code }              = request.params;
-    const { from_seq, to_seq }  = request.body || {};
+    const { code }             = request.params;
+    const { from_seq, to_seq } = request.body || {};
 
     if (!from_seq || !to_seq) {
       return reply.code(400).send({ error: 'from_seq and to_seq are required', code: 'MISSING_PARAM' });

@@ -8,18 +8,7 @@ if (!globalThis.WebSocket) {
 }
 
 const path = require('path');
-const fs   = require('fs');
 const fastify = require('fastify')({ logger: true, trustProxy: true });
-const config  = require('./config');
-
-// ── Inject admin key into HTML at serve time ──────────────────────
-function injectKey(file) {
-  const html = fs.readFileSync(path.join(__dirname, '..', 'public', file), 'utf8');
-  return html.replace(
-    '</head>',
-    `<script>window.__ADMIN_KEY__=${JSON.stringify(config.adminApiKey)};</script></head>`
-  );
-}
 
 // ── Security headers ──────────────────────────────────────────────
 fastify.register(require('@fastify/helmet'), {
@@ -59,20 +48,9 @@ fastify.register(require('@fastify/multipart'), {
 fastify.get('/', async (req, reply) => reply.redirect('/admin'));
 fastify.get('/admin', async (req, reply) => reply.redirect('/admin/'));
 
-fastify.get('/admin/', async (req, reply) => {
-  reply.type('text/html');
-  return injectKey('admin/index.html');
-});
-
-fastify.get('/admin/upload', async (req, reply) => {
-  reply.type('text/html');
-  return injectKey('admin/upload.html');
-});
-
-fastify.get('/admin/batch/:code', async (req, reply) => {
-  reply.type('text/html');
-  return injectKey('admin/batch-detail.html');
-});
+fastify.get('/admin/', async (req, reply) => reply.sendFile('admin/index.html'));
+fastify.get('/admin/upload', async (req, reply) => reply.sendFile('admin/upload.html'));
+fastify.get('/admin/batch/:code', async (req, reply) => reply.sendFile('admin/batch-detail.html'));
 
 // Consumer result page — tell crawlers/bots not to index these
 fastify.get('/result/:serial', async (req, reply) => {

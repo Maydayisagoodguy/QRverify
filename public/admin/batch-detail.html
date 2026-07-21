@@ -479,12 +479,9 @@
 <div class="toast-wrap" id="toast-wrap"></div>
 
 <script>
-  const adminKey  = window.__ADMIN_KEY__ || '';
   const batchCode = decodeURIComponent(window.location.pathname.split('/').pop());
-  let _batchScanLimit  = null; // set by loadBatchDetail
-  let _globalScanLimit = 1;   // set by loadGlobalLimit
-
-  document.getElementById('sidebar-key').textContent = adminKey ? adminKey.slice(0,10) + '…' : '—';
+  let _batchScanLimit  = null;
+  let _globalScanLimit = 1;
 
   // ── Toast ──────────────────────────────────────────────────────────
   function toast(msg, type = '') {
@@ -501,7 +498,6 @@
     return fetch(path, {
       ...opts,
       headers: {
-        'x-admin-key': adminKey,
         'Content-Type': 'application/json',
         ...(opts.headers || {}),
       },
@@ -763,7 +759,7 @@
       toast(`${qty} QR code${qty > 1 ? 's' : ''} generated`, 'success');
 
       setTimeout(() => {
-        const url = `/admin/batches/${encodeURIComponent(batchCode)}/export?key=${encodeURIComponent(adminKey)}`;
+        const url = `/admin/batches/${encodeURIComponent(batchCode)}/export`;
         window.location.href = url;
         statusEl.textContent = '';
         statusEl.style.display = 'none';
@@ -781,7 +777,7 @@
 
   // ── Download ZIP ───────────────────────────────────────────────────
   function downloadZip() {
-    const url = `/admin/batches/${encodeURIComponent(batchCode)}/export?key=${encodeURIComponent(adminKey)}`;
+    const url = `/admin/batches/${encodeURIComponent(batchCode)}/export`;
     window.location.href = url;
   }
 

@@ -389,28 +389,6 @@
     }
     .warnings-list p { font-size: 12px; color: #92400E; line-height: 1.6; }
 
-    /* ── Auth overlay ─────────────────────────────────────── */
-    .auth-overlay {
-      display: none;
-      position: fixed;
-      inset: 0;
-      background: rgba(0,0,0,0.6);
-      backdrop-filter: blur(6px);
-      z-index: 50;
-      align-items: center;
-      justify-content: center;
-    }
-    .auth-overlay.show { display: flex; }
-
-    .auth-card {
-      background: #fff;
-      border-radius: var(--radius-lg);
-      padding: 36px;
-      width: 100%;
-      max-width: 380px;
-      box-shadow: var(--shadow-float);
-    }
-
     .auth-logo {
       display: flex; align-items: center; gap: 12px;
       margin-bottom: 24px;
@@ -448,29 +426,6 @@
   </style>
 </head>
 <body>
-
-  <!-- Auth overlay -->
-  <div class="auth-overlay" id="auth-overlay">
-    <div class="auth-card">
-      <div class="auth-logo">
-        <img src="/logo.png" alt="First Molecule" />
-        <div>
-          <div class="auth-logo-name">First Molecule</div>
-          <div class="auth-logo-sub">Admin Console</div>
-        </div>
-      </div>
-      <h2>Admin Access</h2>
-      <p>Enter your admin API key to access the QR Verify dashboard.</p>
-      <div class="input-group">
-        <label for="key-input">Admin API Key</label>
-        <input type="password" id="key-input" placeholder="Enter your admin key…" autocomplete="off" />
-      </div>
-      <button class="btn btn-primary" style="width:100%;justify-content:center;height:44px;" onclick="saveKey()">
-        Continue
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-      </button>
-    </div>
-  </div>
 
   <!-- Sidebar -->
   <aside class="sidebar">
@@ -571,39 +526,6 @@
     const dropzone = document.getElementById('dropzone');
     const fileInput = document.getElementById('file-input');
     let selectedFile = null;
-    let adminKey = '';
-
-    // ── Auth ───────────────────────────────────────────────────────
-    function init() {
-      const autoKey = window.__ADMIN_KEY__;
-      if (autoKey) {
-        adminKey = autoKey;
-        sessionStorage.setItem('qrv_admin_key', autoKey);
-        document.getElementById('sidebar-key').textContent = autoKey.slice(0, 8) + '…';
-        return;
-      }
-      const stored = sessionStorage.getItem('qrv_admin_key');
-      if (!stored) {
-        document.getElementById('auth-overlay').classList.add('show');
-      } else {
-        adminKey = stored;
-        document.getElementById('sidebar-key').textContent = stored.slice(0, 8) + '…';
-      }
-    }
-
-    function saveKey() {
-      const val = document.getElementById('key-input').value.trim();
-      if (!val) return;
-      adminKey = val;
-      sessionStorage.setItem('qrv_admin_key', val);
-      document.getElementById('auth-overlay').classList.remove('show');
-      document.getElementById('sidebar-key').textContent = val.slice(0, 8) + '…';
-    }
-
-    document.getElementById('key-input').addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') saveKey();
-    });
-
     // ── Drag & drop ────────────────────────────────────────────────
     dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('drag-over'); });
     dropzone.addEventListener('dragleave', ()  => dropzone.classList.remove('drag-over'));
@@ -658,7 +580,7 @@
       try {
         const res  = await fetch('/admin/upload', {
           method: 'POST',
-          headers: { 'x-admin-key': adminKey },
+          headers: {},
           body: form,
         });
         const json = await res.json();
@@ -724,7 +646,7 @@
 
     function downloadZip(batchCode) {
       // Direct URL download — avoids browser blocking async a.click() after fetch()
-      const url = `/admin/batches/${encodeURIComponent(batchCode)}/export?key=${encodeURIComponent(adminKey)}`;
+      const url = `/admin/batches/${encodeURIComponent(batchCode)}/export`;
       const a   = document.createElement('a');
       a.href = url;
       a.download = `${batchCode}-qrcodes.zip`;
@@ -737,7 +659,6 @@
       return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
     }
 
-    init();
   </script>
 </body>
 </html>

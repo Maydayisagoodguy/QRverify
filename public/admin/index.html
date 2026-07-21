@@ -581,18 +581,6 @@
 
     .loading-row td { padding: 32px; text-align: center; }
 
-    /* ── Auth overlay ─────────────────────────────────────── */
-    .auth-overlay {
-      display: none;
-      position: fixed;
-      inset: 0;
-      background: rgba(0,0,0,0.6);
-      backdrop-filter: blur(6px);
-      z-index: 100;
-      align-items: center;
-      justify-content: center;
-    }
-    .auth-overlay.show { display: flex; }
 
     .auth-card {
       background: #fff;
@@ -681,26 +669,6 @@
 </head>
 <body>
 
-  <!-- Auth overlay -->
-  <div class="auth-overlay" id="auth-overlay">
-    <div class="auth-card">
-      <div class="auth-logo">
-        <img src="/logo.png" alt="First Molecule" />
-        <div class="auth-logo-text">
-          <div class="auth-logo-name">First Molecule</div>
-          <div class="auth-logo-sub">Admin Console</div>
-        </div>
-      </div>
-      <h2>Sign in</h2>
-      <p>Enter your admin API key to access the dashboard.</p>
-      <div class="input-group">
-        <label for="key-input">Admin API Key</label>
-        <input type="password" id="key-input" placeholder="Paste your admin key…" autocomplete="off" />
-      </div>
-      <button class="auth-submit" onclick="doAuth()">Continue →</button>
-    </div>
-  </div>
-
   <!-- Sidebar -->
   <aside class="sidebar">
     <div class="sidebar-brand">
@@ -743,16 +711,12 @@
 
     <div class="sidebar-footer">
       <div class="key-badge">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 11-7.778 7.778 5.5 5.5 0 017.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
         <div>
-          <div class="key-badge-text">API Key</div>
-          <span class="key-val" id="sidebar-key">—</span>
+          <div class="key-badge-text">Admin Console</div>
+          <span class="key-val">First Molecule</span>
         </div>
       </div>
-      <button class="logout-btn" onclick="logout()">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-        Sign out
-      </button>
     </div>
   </aside>
 
@@ -1227,7 +1191,6 @@
   <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
   <script>
     // ── State ──────────────────────────────────────────────────────
-    let adminKey       = '';
     let mapInstance    = null;
     let clusterLayer   = null;
     let mapData        = [];
@@ -1237,49 +1200,8 @@
     const loadedSections = new Set();
 
 
-    // ── Auth ───────────────────────────────────────────────────────
+    // ── Init ───────────────────────────────────────────────────────
     function init() {
-      // Key is injected by server — no manual entry needed
-      const autoKey = window.__ADMIN_KEY__;
-      if (autoKey) {
-        adminKey = autoKey;
-        sessionStorage.setItem('qrv_admin_key', autoKey);
-        document.getElementById('sidebar-key').textContent = autoKey.slice(0, 10) + '…';
-        afterAuth();
-        return;
-      }
-      // Fallback: manual entry (only if key not injected)
-      const stored = sessionStorage.getItem('qrv_admin_key');
-      if (!stored) {
-        document.getElementById('auth-overlay').classList.add('show');
-        document.getElementById('key-input').focus();
-      } else {
-        adminKey = stored;
-        document.getElementById('sidebar-key').textContent = stored.slice(0, 10) + '…';
-        afterAuth();
-      }
-
-      document.getElementById('key-input').addEventListener('keydown', e => {
-        if (e.key === 'Enter') doAuth();
-      });
-    }
-
-    function doAuth() {
-      const val = document.getElementById('key-input').value.trim();
-      if (!val) return;
-      adminKey = val;
-      sessionStorage.setItem('qrv_admin_key', val);
-      document.getElementById('auth-overlay').classList.remove('show');
-      document.getElementById('sidebar-key').textContent = val.slice(0, 10) + '…';
-      afterAuth();
-    }
-
-    function logout() {
-      sessionStorage.removeItem('qrv_admin_key');
-      location.reload();
-    }
-
-    function afterAuth() {
       loadAnalytics();
       // Honour any hash from sidebar links on other pages (e.g. batch-detail)
       const hash = window.location.hash.replace('#', '');
@@ -1347,13 +1269,11 @@
       const res = await fetch(path, {
         ...opts,
         headers: {
-          'x-admin-key': adminKey,
           ...(opts.body ? { 'Content-Type': 'application/json' } : {}),
           ...(opts.headers || {}),
         },
         body: opts.body ? JSON.stringify(opts.body) : undefined,
       });
-      if (res.status === 401) { logout(); throw new Error('Unauthorized'); }
       if (!res.ok) throw new Error(await res.text());
       return res.json();
     }
@@ -1873,7 +1793,7 @@
     }
 
     function downloadZip(batchCode) {
-      const url = `/admin/batches/${encodeURIComponent(batchCode)}/export?key=${encodeURIComponent(adminKey)}`;
+      const url = `/admin/batches/${encodeURIComponent(batchCode)}/export`;
       const a   = document.createElement('a');
       a.href = url; a.download = `${batchCode}-labels.zip`;
       document.body.appendChild(a); a.click(); a.remove();
@@ -1922,7 +1842,7 @@
       try {
         await fetch('/admin/products/deactivate', {
           method: 'POST',
-          headers: { 'x-admin-key': adminKey, 'content-type': 'application/json' },
+          headers: { 'content-type': 'application/json' },
           body: JSON.stringify({ batch_code: batchCode }),
         });
         toast('Batch recalled', 'success');
@@ -2026,7 +1946,7 @@
       try {
         await fetch(`/admin/alerts/${id}/resolve`, {
           method: 'POST',
-          headers: { 'x-admin-key': adminKey },
+          headers: {},
         });
         // Update UI
         const row = document.getElementById(`alert-row-${id}`);

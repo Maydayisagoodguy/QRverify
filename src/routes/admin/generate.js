@@ -1,16 +1,12 @@
 'use strict';
 
-const adminAuth = require('../../middleware/adminAuth');
 const { adminRateLimit } = require('../../middleware/rateLimit');
-const db        = require('../../db');
+const db = require('../../db');
 const { processForm, formatSeq } = require('../../services/qrgen');
 
 module.exports = async function generateRoutes(fastify) {
 
-  // POST /admin/generate — create QR batch without Excel
-  fastify.post('/generate', {
-    preHandler: [adminRateLimit, adminAuth],
-  }, async (request, reply) => {
+  fastify.post('/generate', { preHandler: [adminRateLimit] }, async (request, reply) => {
     const { batch_code, quantity, product_name, target_country } = request.body || {};
 
     if (!batch_code || !quantity) {

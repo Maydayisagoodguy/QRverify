@@ -1,13 +1,11 @@
 'use strict';
 
-const adminAuth = require('../../middleware/adminAuth');
 const { adminRateLimit } = require('../../middleware/rateLimit');
 const db = require('../../db');
 
 module.exports = async function configRoutes(fastify) {
 
-  // GET /admin/config — global config + per-batch limits + serial override counts
-  fastify.get('/config', { preHandler: [adminRateLimit, adminAuth] }, async () => {
+  fastify.get('/config', { preHandler: [adminRateLimit] }, async () => {
     const [scanLimitStr, batches, overrideCount] = await Promise.all([
       db.getConfigValue('scan_limit_default', '1'),
       db.getBatches(),
@@ -26,8 +24,7 @@ module.exports = async function configRoutes(fastify) {
     };
   });
 
-  // POST /admin/config — update a global config value
-  fastify.post('/config', { preHandler: [adminRateLimit, adminAuth] }, async (request, reply) => {
+  fastify.post('/config', { preHandler: [adminRateLimit] }, async (request, reply) => {
     const { key, value } = request.body || {};
     if (!key || value === undefined) {
       return reply.code(400).send({ error: 'key and value required', code: 'MISSING_PARAM' });
@@ -45,13 +42,11 @@ module.exports = async function configRoutes(fastify) {
     return { success: true, key, value: num };
   });
 
-  // PATCH /admin/batches/:code/scan-limit — override scan limit for one batch
-  fastify.patch('/batches/:code/scan-limit', { preHandler: [adminRateLimit, adminAuth] }, async (request, reply) => {
+  fastify.patch('/batches/:code/scan-limit', { preHandler: [adminRateLimit] }, async (request, reply) => {
     const { code } = request.params;
     const { scan_limit } = request.body || {};
 
     if (scan_limit === null || scan_limit === undefined || scan_limit === '') {
-      // Reset to global default
       await db.setScanLimitForBatch(code, null);
       db.logAuditAction('SET_BATCH_SCAN_LIMIT', 'batch', code, { scan_limit: null }).catch(() => {});
       return { success: true, batch_code: code, scan_limit: null };

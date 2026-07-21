@@ -1,16 +1,15 @@
 'use strict';
 
-const adminAuth = require('../../middleware/adminAuth');
 const { adminRateLimit } = require('../../middleware/rateLimit');
-const db        = require('../../db');
+const db = require('../../db');
 
 module.exports = async function batchRoutes(fastify) {
 
-  fastify.get('/batches', { preHandler: [adminRateLimit, adminAuth] }, async () => {
+  fastify.get('/batches', { preHandler: [adminRateLimit] }, async () => {
     return db.getBatches();
   });
 
-  fastify.post('/products/deactivate', { preHandler: [adminRateLimit, adminAuth] }, async (request, reply) => {
+  fastify.post('/products/deactivate', { preHandler: [adminRateLimit] }, async (request, reply) => {
     const { serial, batch_code } = request.body || {};
 
     if (serial) {
