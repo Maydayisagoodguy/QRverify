@@ -781,17 +781,29 @@
 
       <!-- ── Dashboard ───────────────────────────────────────── -->
       <section class="section active" id="section-dashboard">
-        <div class="section-header" style="margin-bottom:24px;">
+        <div class="section-header" style="margin-bottom:16px;">
           <div>
             <div class="section-eyebrow">Overview</div>
             <span class="section-title" id="dashboard-title">Dashboard</span>
           </div>
-          <div id="batch-context-strip" style="display:none;align-items:center;gap:10px;">
-            <span style="font-size:12px;font-weight:600;color:var(--text-muted);">Viewing batch</span>
-            <span id="batch-context-code" style="font-family:monospace;font-size:13px;font-weight:700;color:var(--red);background:#FFF1F2;padding:4px 10px;border-radius:4px;border:1px solid rgba(184,31,36,0.2);"></span>
-            <button class="btn btn-ghost btn-sm" onclick="clearBatchContext()">✕ Clear filter</button>
-          </div>
         </div>
+
+        <!-- Batch filter bar — primary dashboard filter -->
+        <div style="display:flex;align-items:center;gap:10px;padding:12px 16px;background:var(--white);border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:20px;flex-wrap:wrap;">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+          <span style="font-size:12px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.06em;white-space:nowrap;">Filter by batch</span>
+          <select id="dash-batch-select" onchange="onDashBatchChange()"
+            style="flex:1;min-width:180px;max-width:320px;height:34px;padding:0 12px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;font-size:13px;font-weight:600;color:var(--text-primary);background:var(--white);outline:none;cursor:pointer;">
+            <option value="">All batches</option>
+          </select>
+          <button id="dash-batch-clear-btn" onclick="onDashBatchClear()"
+            style="display:none;height:34px;padding:0 14px;border:1px solid var(--border);border-radius:var(--radius-sm);background:none;font-family:inherit;font-size:12px;font-weight:600;color:var(--text-muted);cursor:pointer;white-space:nowrap;">
+            ✕ Clear
+          </button>
+          <span id="dash-batch-context" style="display:none;font-size:12px;color:var(--text-muted);margin-left:4px;"></span>
+        </div>
+
+        <div id="batch-context-strip" style="display:none;"></div>
         <div class="stats-grid">
           <div class="stat-card">
             <div class="stat-label">Total Scans</div>
@@ -836,7 +848,8 @@
               <button class="map-filter-btn" data-filter="verified">Verified</button>
               <button class="map-filter-btn" data-filter="warning">Warning</button>
               <button class="map-filter-btn" data-filter="fake">Fake</button>
-              <select id="map-filter-batch" onchange="onMapBatchChange()" style="height:26px;padding:0 8px;border:1px solid var(--border);border-radius:var(--radius-pill);font-family:inherit;font-size:11px;font-weight:600;color:var(--text-secondary);background:var(--white);outline:none;cursor:pointer;margin-left:4px;">
+              <!-- hidden select kept for JS compatibility -->
+              <select id="map-filter-batch" onchange="onMapBatchChange()" style="display:none;">
                 <option value="">All batches</option>
               </select>
             </div>
@@ -1797,6 +1810,10 @@
     function clearBatchContext() {
       const sel = document.getElementById('map-filter-batch');
       if (sel) sel.value = '';
+      const dashSel = document.getElementById('dash-batch-select');
+      if (dashSel) dashSel.value = '';
+      document.getElementById('dash-batch-clear-btn').style.display = 'none';
+      document.getElementById('dash-batch-context').style.display = 'none';
       document.getElementById('batch-context-strip').style.display = 'none';
       document.getElementById('dashboard-title').textContent = 'Dashboard';
       renderMapMarkers(currentMapFilter);
@@ -1812,8 +1829,30 @@
       }
     }
 
+    function onDashBatchChange() {
+      const val = document.getElementById('dash-batch-select').value;
+      // sync hidden map-filter-batch so onMapBatchChange reads correct value
+      const mapSel = document.getElementById('map-filter-batch');
+      if (mapSel) mapSel.value = val;
+      // show/hide clear button + context label
+      document.getElementById('dash-batch-clear-btn').style.display = val ? '' : 'none';
+      const ctx = document.getElementById('dash-batch-context');
+      if (val) {
+        ctx.style.display = '';
+        ctx.textContent = `Showing stats for ${val}`;
+      } else {
+        ctx.style.display = 'none';
+      }
+      onMapBatchChange();
+    }
+
+    function onDashBatchClear() {
+      document.getElementById('dash-batch-select').value = '';
+      onDashBatchChange();
+    }
+
     function populateBatchDropdowns(codes) {
-      const targets = ['alert-filter-batch', 'map-filter-batch'];
+      const targets = ['alert-filter-batch', 'map-filter-batch', 'dash-batch-select'];
       for (const id of targets) {
         const sel = document.getElementById(id);
         if (!sel) continue;

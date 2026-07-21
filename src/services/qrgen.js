@@ -47,10 +47,11 @@ async function generateQRDataURL(url) {
 }
 
 async function generateSVGLabel(serial, seq, hmac) {
-  const url      = buildURL(serial, hmac);
-  const qrData   = await generateQRDataURL(url);
-  const seqStr   = formatSeq(seq);
-  const verifyAt = config.verifyBaseUrl.replace(/^https?:\/\//, '');
+  const url        = buildURL(serial, hmac);
+  const qrData     = await generateQRDataURL(url);
+  const seqStr     = formatSeq(seq);
+  const verifyAt   = config.verifyBaseUrl.replace(/^https?:\/\//, '');
+  const batchPart  = serial.substring(0, serial.lastIndexOf('-'));
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
@@ -63,7 +64,7 @@ async function generateSVGLabel(serial, seq, hmac) {
   <image xlink:href="${qrData}" x="13" y="13" width="224" height="224"/>
   <text x="125" y="246" text-anchor="middle"
         font-family="Courier New, Courier, monospace"
-        font-size="10.5" font-weight="bold" fill="#333333" letter-spacing="2">${seqStr}</text>
+        font-size="9" font-weight="bold" fill="#555555" letter-spacing="1">${serial}</text>
 
   <!-- Divider -->
   <line x1="250" y1="12" x2="250" y2="238" stroke="#DDDDDD" stroke-width="1"/>
@@ -74,29 +75,36 @@ async function generateSVGLabel(serial, seq, hmac) {
         font-size="14.5" font-weight="bold" fill="#111111" letter-spacing="1.2">FIRST MOLECULE</text>
   <line x1="268" y1="54" x2="592" y2="54" stroke="#EEEEEE" stroke-width="0.75"/>
 
-  <text x="270" y="82"
+  <text x="270" y="80"
         font-family="Arial, Helvetica, sans-serif"
         font-size="11.5" font-weight="600" fill="#B81F24">&#x25B6; Scan to Verify</text>
-  <text x="270" y="98"
+  <text x="270" y="95"
         font-family="Arial, Helvetica, sans-serif"
-        font-size="9.5" fill="#777777">Point your camera at the QR code to check authenticity</text>
+        font-size="9" fill="#777777">Point your camera at the QR code to check authenticity</text>
 
-  <line x1="268" y1="111" x2="592" y2="111" stroke="#EEEEEE" stroke-width="0.75"/>
+  <line x1="268" y1="107" x2="592" y2="107" stroke="#EEEEEE" stroke-width="0.75"/>
 
-  <text x="270" y="138"
+  <text x="270" y="128"
         font-family="Arial, Helvetica, sans-serif"
-        font-size="8.5" fill="#AAAAAA" letter-spacing="1.5">SERIAL NUMBER</text>
-  <text x="270" y="172"
+        font-size="8" fill="#AAAAAA" letter-spacing="1.5">SERIAL NUMBER</text>
+
+  <!-- Batch code part — smaller, muted -->
+  <text x="270" y="148"
         font-family="Courier New, Courier, monospace"
-        font-size="26" font-weight="bold" fill="#111111" letter-spacing="4">${seqStr}</text>
+        font-size="11" fill="#888888" letter-spacing="1.5">${batchPart}</text>
 
-  <line x1="268" y1="188" x2="592" y2="188" stroke="#EEEEEE" stroke-width="0.75"/>
+  <!-- Seq number — large, bold, prominent -->
+  <text x="270" y="182"
+        font-family="Courier New, Courier, monospace"
+        font-size="28" font-weight="bold" fill="#111111" letter-spacing="5">${seqStr}</text>
 
-  <text x="270" y="210"
+  <line x1="268" y1="196" x2="592" y2="196" stroke="#EEEEEE" stroke-width="0.75"/>
+
+  <text x="270" y="216"
         font-family="Arial, Helvetica, sans-serif"
         font-size="8" fill="#BBBBBB">Verify at: ${verifyAt}</text>
-  <text x="270" y="226"
-        font-family="Arial, Helvetica, sans-serif"
+  <text x="270" y="232"
+        font-family="Courier New, Courier, monospace"
         font-size="7.5" fill="#DDDDDD">${serial}</text>
 </svg>`;
 }

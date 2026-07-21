@@ -211,38 +211,46 @@
 
     .scan-history svg { width: 13px; height: 13px; flex-shrink: 0; }
 
-    /* ── Verified hero (premium authenticated state) ──── */
-    .verified-hero {
-      background: linear-gradient(160deg, #052e16 0%, #064e3b 100%);
+    /* ── Premium status hero (verified + warning) ──────── */
+    .status-hero {
       padding: 36px 36px 32px;
       text-align: center;
       position: relative;
       overflow: hidden;
       border-bottom: 1px solid rgba(255,255,255,0.06);
     }
-    .verified-hero::before {
+    .status-hero.verified { background: linear-gradient(160deg, #052e16 0%, #064e3b 100%); }
+    .status-hero.warning  { background: linear-gradient(160deg, #1a0505 0%, #320a0a 100%); }
+
+    .status-hero::before {
       content: '';
       position: absolute;
       top: 0; left: 0; right: 0;
       height: 4px;
-      background: #22C55E;
     }
-    .verified-glow {
+    .status-hero.verified::before { background: #22C55E; }
+    .status-hero.warning::before  { background: #EF4444; }
+
+    .hero-glow {
       position: absolute;
       top: -60px; left: 50%;
       transform: translateX(-50%);
       width: 280px; height: 280px;
-      background: radial-gradient(circle, rgba(34,197,94,0.18) 0%, transparent 65%);
       pointer-events: none;
     }
-    .verified-seal {
+    .status-hero.verified .hero-glow { background: radial-gradient(circle, rgba(34,197,94,0.18) 0%, transparent 65%); }
+    .status-hero.warning  .hero-glow { background: radial-gradient(circle, rgba(239,68,68,0.15) 0%, transparent 65%); }
+
+    .hero-seal {
       position: relative;
       z-index: 1;
       width: 88px; height: 96px;
       margin: 0 auto 18px;
-      filter: drop-shadow(0 6px 20px rgba(34,197,94,0.4));
     }
-    .verified-seal svg { width: 100%; height: 100%; }
+    .status-hero.verified .hero-seal { filter: drop-shadow(0 6px 20px rgba(34,197,94,0.4)); }
+    .status-hero.warning  .hero-seal { filter: drop-shadow(0 6px 20px rgba(239,68,68,0.35)); }
+    .hero-seal svg { width: 100%; height: 100%; }
+
     @keyframes drawCheck {
       from { stroke-dashoffset: 65; }
       to   { stroke-dashoffset: 0; }
@@ -252,16 +260,19 @@
       stroke-dashoffset: 65;
       animation: drawCheck 0.6s cubic-bezier(0.22,1,0.36,1) 0.35s both;
     }
-    .verified-eyebrow {
+
+    .hero-eyebrow {
       font-size: 11px;
       font-weight: 700;
       letter-spacing: 0.16em;
       text-transform: uppercase;
-      color: #4ade80;
       margin-bottom: 8px;
       position: relative; z-index: 1;
     }
-    .verified-heading {
+    .status-hero.verified .hero-eyebrow { color: #4ade80; }
+    .status-hero.warning  .hero-eyebrow { color: #f87171; }
+
+    .hero-heading {
       font-size: 22px;
       font-weight: 800;
       letter-spacing: -0.02em;
@@ -270,9 +281,9 @@
       margin-bottom: 10px;
       position: relative; z-index: 1;
     }
-    .verified-sub {
+    .hero-sub {
       font-size: 13px;
-      color: rgba(255,255,255,0.38);
+      color: rgba(255,255,255,0.40);
       line-height: 1.65;
       margin-bottom: 16px;
       position: relative; z-index: 1;
@@ -693,17 +704,17 @@
       const band = document.getElementById('status-band');
       const st   = STATUS[s] || STATUS.fake;
 
-      // Build scan history pill
+      // Scan count pill (shown in hero for verified/warning)
       let scanPill = '';
-      if (s !== 'fake') {
+      if (s === 'verified' || s === 'warning') {
         if (prevScans === 0) {
-          scanPill = `<div class="scan-history first-scan" style="margin:16px auto 0;">
+          scanPill = `<div class="scan-history first-scan" style="display:inline-flex;margin:14px auto 0;">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
             First scan of this product
           </div>`;
         } else {
           const times = prevScans === 1 ? '1 time' : `${prevScans} times`;
-          scanPill = `<div class="scan-history prev-scans" style="margin:16px auto 0;">
+          scanPill = `<div class="scan-history prev-scans" style="display:inline-flex;margin:14px auto 0;">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
             Scanned ${times} previously
           </div>`;
@@ -712,10 +723,10 @@
 
       // Premium hero for verified state
       if (s === 'verified') {
-        band.className = 'verified-hero';
+        band.className = 'status-hero verified';
         band.innerHTML = `
-          <div class="verified-glow"></div>
-          <div class="verified-seal">
+          <div class="hero-glow"></div>
+          <div class="hero-seal">
             <svg viewBox="0 0 100 110" fill="none" xmlns="http://www.w3.org/2000/svg">
               <path d="M50 6 L86 21 L86 53 C86 73 70 89 50 96 C30 89 14 73 14 53 L14 21 Z"
                     fill="#22C55E" opacity="0.18" stroke="#22C55E" stroke-width="1.5"/>
@@ -726,15 +737,38 @@
                         stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
           </div>
-          <div class="verified-eyebrow">Authenticated</div>
-          <div class="verified-heading">Genuine First Molecule<br>Product</div>
-          <div class="verified-sub">This product has been verified against<br>First Molecule's secure product database.</div>
+          <div class="hero-eyebrow">Authenticated</div>
+          <div class="hero-heading">Genuine First Molecule<br>Product</div>
+          <div class="hero-sub">This product has been verified against<br>First Molecule's secure product database.</div>
           ${scanPill}
         `;
         return;
       }
 
-      // Standard band for all other states
+      // Premium hero for warning state
+      if (s === 'warning') {
+        band.className = 'status-hero warning';
+        band.innerHTML = `
+          <div class="hero-glow"></div>
+          <div class="hero-seal">
+            <svg viewBox="0 0 100 110" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M50 6 L86 21 L86 53 C86 73 70 89 50 96 C30 89 14 73 14 53 L14 21 Z"
+                    fill="#EF4444" opacity="0.18" stroke="#EF4444" stroke-width="1.5"/>
+              <path d="M50 17 L76 29 L76 53 C76 68 64 80 50 85 C36 80 24 68 24 53 L24 29 Z"
+                    fill="#EF4444" opacity="0.10"/>
+              <line x1="50" y1="36" x2="50" y2="62" stroke="#f87171" stroke-width="5.5" stroke-linecap="round"/>
+              <circle cx="50" cy="75" r="3.5" fill="#f87171"/>
+            </svg>
+          </div>
+          <div class="hero-eyebrow">Duplicate Scan</div>
+          <div class="hero-heading">Multiple Scans<br>Detected</div>
+          <div class="hero-sub">This QR has been scanned from multiple<br>locations. Verify authenticity with your seller.</div>
+          ${scanPill}
+        `;
+        return;
+      }
+
+      // Standard band for fake / inactive
       band.className = `status-band ${s}`;
       band.innerHTML = `
         <div class="status-icon-wrap">${ICONS[s] || ICONS.fake}</div>
@@ -742,7 +776,6 @@
           <div class="status-eyebrow">${st.eyebrow}</div>
           <div class="status-heading">${st.heading}</div>
           <div class="status-sub">${st.sub}</div>
-          ${scanPill}
         </div>
       `;
     }
@@ -750,50 +783,50 @@
     function renderBody(s, remarkText) {
       const body = document.getElementById('product-body');
 
-      const scanLine = prevScans === 0
-        ? `<div style="display:flex;align-items:center;gap:8px;font-size:14px;color:#059669;font-weight:600;">
-             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
-             First scan of this product
-           </div>`
-        : `<div style="display:flex;align-items:center;gap:8px;font-size:14px;color:#B45309;font-weight:500;">
-             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-             Scanned ${prevScans === 1 ? '1 time' : prevScans + ' times'} previously
-           </div>`;
-
-      const remarkBorderColor = s === 'verified' ? '#22C55E' : s === 'warning' ? '#F59E0B' : '#9CA3AF';
+      const remarkBorderColor = s === 'verified' ? '#22C55E' : s === 'warning' ? '#EF4444' : '#9CA3AF';
       const remarkBlock = remarkText
-        ? `<div style="margin-top:22px;padding:16px 20px;border-left:4px solid ${remarkBorderColor};border-radius:0 10px 10px 0;background:#FAFAFA;">
+        ? `<div style="padding:16px 20px;border-left:4px solid ${remarkBorderColor};border-radius:0 10px 10px 0;background:#FAFAFA;">
              <div style="font-size:17px;font-weight:700;color:var(--black);line-height:1.45;letter-spacing:-0.01em;">${esc(remarkText)}</div>
            </div>`
         : '';
 
-      const warningNotice = s === 'warning'
-        ? `<div style="margin-top:16px;padding:12px 14px;background:#FFF1F2;border:1px solid #FECACA;border-radius:8px;font-size:13px;color:#991B1B;line-height:1.6;">
-             This QR code has been scanned from multiple locations. If you purchased this product as new, please verify authenticity with your seller.
-           </div>`
-        : '';
+      if (s === 'verified') {
+        body.innerHTML = `
+          <div style="padding:24px 28px;">
+            ${remarkBlock || `<div style="display:flex;align-items:center;gap:10px;font-size:14px;color:#059669;font-weight:600;">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+              Authenticity confirmed — you can trust this product.
+            </div>`}
+          </div>`;
+        return;
+      }
 
-      const reportBtn = (s === 'warning' || s === 'fake')
-        ? `<div class="actions" style="border-top:1px solid var(--gray-200);padding:16px 0 0;margin-top:20px;">
-             <button class="btn btn-danger" onclick="openModal()">Report this product</button>
-           </div>`
-        : '';
+      if (s === 'warning') {
+        body.innerHTML = `
+          <div style="padding:24px 28px;display:flex;flex-direction:column;gap:16px;">
+            ${remarkBlock}
+            <div style="padding:14px 16px;background:#FFF1F2;border:1px solid #FECACA;border-radius:10px;">
+              <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#991B1B;margin-bottom:6px;">What to do</div>
+              <div style="font-size:13px;color:#7f1d1d;line-height:1.7;">If you purchased this as a new product, contact your seller or First Molecule directly to verify its origin.</div>
+            </div>
+            <div style="padding-top:4px;">
+              <button class="btn btn-danger" onclick="openModal()" style="width:100%;justify-content:center;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                Report this product
+              </button>
+            </div>
+          </div>`;
+        return;
+      }
 
-      const fakeMsg = s === 'fake'
-        ? `<div style="font-size:14px;color:var(--gray-600);line-height:1.7;">
-             This QR code is not registered in First Molecule's system. Do not use or consume this product.
-           </div>`
-        : '';
-
+      // fake / inactive
       body.innerHTML = `
-        <div style="padding:24px 28px;">
-          ${fakeMsg}
-          ${s !== 'fake' ? scanLine : ''}
-          ${remarkBlock}
-          ${warningNotice}
-          ${reportBtn}
-        </div>
-      `;
+        <div style="padding:24px 28px;display:flex;flex-direction:column;gap:16px;">
+          <div style="font-size:14px;color:var(--gray-600);line-height:1.7;">
+            This QR code is not registered in First Molecule's system. Do not use or consume this product.
+          </div>
+          <button class="btn btn-danger" onclick="openModal()" style="width:100%;justify-content:center;">Report this product</button>
+        </div>`;
     }
 
     function esc(str) {
