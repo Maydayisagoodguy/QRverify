@@ -1060,59 +1060,76 @@
         <div class="section-header">
           <div>
             <div class="section-eyebrow">Analytics</div>
-            <span class="section-title">Batch &amp; Serial Analytics</span>
+            <span class="section-title">Network Intelligence</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <label for="network-batch-select" style="font-size:12px;color:var(--text-muted);font-weight:500;white-space:nowrap;">Select Batch</label>
+            <select id="network-batch-select" onchange="onNetworkBatchChange()" style="height:34px;padding:0 12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-card);color:var(--text-primary);font-size:13px;cursor:pointer;min-width:220px;outline:none;">
+              <option value="">— Choose a batch —</option>
+            </select>
           </div>
         </div>
 
-        <!-- Batch-wise scan summary -->
-        <div class="table-card" style="margin-bottom:20px;">
+        <!-- Summary stat cards (hidden until batch loaded) -->
+        <div id="network-stats-row" style="display:none;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px;">
+          <div class="stat-card">
+            <div class="stat-label">Scanned Serials</div>
+            <div class="stat-value" id="nst-serials">—</div>
+            <div class="stat-sub" id="nst-serials-sub">of — total</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">VPN / Datacenter</div>
+            <div class="stat-value" id="nst-vpn">—</div>
+            <div class="stat-sub" id="nst-vpn-sub">of all scans</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Mobile Network</div>
+            <div class="stat-value" id="nst-mobile">—</div>
+            <div class="stat-sub" id="nst-mobile-sub">of all scans</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Unique Carriers</div>
+            <div class="stat-value" id="nst-carriers">—</div>
+            <div class="stat-sub">distinct ISPs seen</div>
+          </div>
+        </div>
+
+        <!-- Empty / prompt state -->
+        <div id="network-empty" style="padding:60px 24px;text-align:center;color:var(--text-muted);">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" style="margin-bottom:12px;opacity:0.4;"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/><path d="M7 8h2M11 8h6M7 12h4M15 12h2"/></svg>
+          <div style="font-size:14px;font-weight:600;margin-bottom:4px;">Select a batch to view network data</div>
+          <div style="font-size:12px;">VPN detection, mobile carrier tracking, and per-serial ISP breakdown</div>
+        </div>
+
+        <!-- Per-serial network table -->
+        <div class="table-card" id="network-table-card" style="display:none;">
           <div class="card-header">
-            <span class="card-title">Scans by Batch</span>
-            <span class="card-meta" id="network-batch-label">All batches · click a row to see top serials</span>
-          </div>
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Batch Code</th>
-                  <th>Product</th>
-                  <th style="color:#059669;">Verified</th>
-                  <th style="color:#D97706;">Warning</th>
-                  <th style="color:#DC2626;">Fake</th>
-                  <th>Total Scans</th>
-                  <th>Fraud Rate</th>
-                  <th>Action</th>
-                </tr>
-              </thead>
-              <tbody id="network-batch-body">
-                <tr class="loading-row"><td colspan="8"><div class="spinner" style="margin:0 auto;"></div></td></tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <!-- Top scanned serials drill-down (hidden until batch is clicked) -->
-        <div class="table-card" id="network-serial-card" style="display:none;">
-          <div class="card-header" style="justify-content:space-between;">
             <div>
-              <span class="card-title">Top Scanned Serials</span>
-              <span class="card-meta" id="network-serial-label">—</span>
+              <span class="card-title">Per-Serial Network Breakdown</span>
+              <span class="card-meta" id="network-table-meta">—</span>
             </div>
-            <button class="btn btn-ghost btn-sm" onclick="closeSerialDrill()" style="flex-shrink:0;">✕ Close</button>
+            <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+              <span style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:4px;font-size:11px;font-weight:700;background:rgba(124,58,237,0.12);color:#7C3AED;">VPN / DC</span>
+              <span style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:4px;font-size:11px;font-weight:700;background:rgba(14,165,233,0.12);color:#0EA5E9;">Mobile</span>
+              <span style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:4px;font-size:11px;font-weight:700;background:rgba(5,150,105,0.12);color:#059669;">ISP</span>
+            </div>
           </div>
           <div class="table-wrap">
             <table>
               <thead>
                 <tr>
-                  <th>#</th>
+                  <th style="width:44px;">#</th>
                   <th>Serial</th>
-                  <th>Scan Count</th>
-                  <th>Scan Limit</th>
-                  <th>Status</th>
+                  <th style="text-align:center;">Scans</th>
+                  <th>Network Types</th>
+                  <th>Top Carrier</th>
+                  <th>Countries</th>
+                  <th>Last Seen</th>
+                  <th style="width:36px;"></th>
                 </tr>
               </thead>
               <tbody id="network-serial-body">
-                <tr class="loading-row"><td colspan="5"><div class="spinner" style="margin:0 auto;"></div></td></tr>
+                <tr class="loading-row"><td colspan="8"><div class="spinner" style="margin:0 auto;"></div></td></tr>
               </tbody>
             </table>
           </div>
@@ -1332,100 +1349,185 @@
       await Promise.all([loadAlertFeed(), loadRecentScans(), loadMap(), loadGeoTable()]);
     }
 
-    let _networkActiveBatch = null;
+    // ── Network Intelligence ───────────────────────────────────────
+
+    const _VPN_KW    = ['amazon','digitalocean','linode','akamai','cloudflare','fastly','vultr','hetzner','ovh','choopa','nordvpn','expressvpn','mullvad','protonvpn','surfshark','leaseweb','colocrossing','rackspace','contabo','upcloud','oracle cloud','ibm cloud','google cloud','azure','microsoft azure','aws'];
+    const _MOBILE_KW = ['jio','airtel','bsnl','vodafone','vi mobile','idea cellular','tata tele','tata docomo','mobile','wireless','cellular','telecom','mnc','mvno'];
+
+    function classifyISP(isp) {
+      if (!isp) return { type: 'unknown' };
+      const s = isp.toLowerCase();
+      for (const kw of _VPN_KW)    if (s.includes(kw)) return { type: 'vpn' };
+      for (const kw of _MOBILE_KW) if (s.includes(kw)) return { type: 'mobile' };
+      return { type: 'isp' };
+    }
+
+    function netBadge(type) {
+      const styles = {
+        vpn:     'background:rgba(124,58,237,0.12);color:#7C3AED;',
+        mobile:  'background:rgba(14,165,233,0.12);color:#0EA5E9;',
+        isp:     'background:rgba(5,150,105,0.12);color:#059669;',
+        unknown: 'background:rgba(107,114,128,0.1);color:#6B7280;',
+      };
+      const labels = { vpn: 'VPN / DC', mobile: 'Mobile', isp: 'ISP', unknown: 'Unknown' };
+      const st = styles[type] || styles.unknown;
+      return `<span style="display:inline-flex;align-items:center;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700;letter-spacing:0.02em;${st}">${labels[type] || 'Unknown'}</span>`;
+    }
 
     async function loadNetworkSection() {
-      const body = document.getElementById('network-batch-body');
-      document.getElementById('network-serial-card').style.display = 'none';
-      _networkActiveBatch = null;
+      const sel = document.getElementById('network-batch-select');
       try {
-        const rows = await api('/admin/analytics/batches');
-        if (!rows || !rows.length) {
-          body.innerHTML = `<tr><td colspan="8">${emptyState('No scan data yet', 'Scans will appear here once QR codes are distributed.')}</td></tr>`;
+        const batches = await api('/admin/analytics/batches');
+        if (!batches || !batches.length) {
+          sel.innerHTML = '<option value="">No batches with scans yet</option>';
           return;
         }
-        document.getElementById('network-batch-label').textContent = `${rows.length} batch${rows.length === 1 ? '' : 'es'} · click a row to see top serials`;
-        body.innerHTML = rows.map(r => {
-          const fraudCount = (r.warning || 0) + (r.fake || 0);
-          const fraudRate  = r.total > 0 ? (fraudCount / r.total * 100).toFixed(1) : '0.0';
-          const rateColor  = fraudRate < 5 ? '#059669' : fraudRate < 15 ? '#D97706' : '#DC2626';
-          const verifiedPct = r.total > 0 ? Math.round((r.verified || 0) / r.total * 100) : 0;
-          const bar = `<div style="display:flex;height:6px;border-radius:3px;overflow:hidden;width:80px;background:var(--border);margin-top:2px;">
-            <div style="width:${verifiedPct}%;background:#059669;"></div>
-            <div style="width:${r.total > 0 ? Math.round((r.warning||0)/r.total*100) : 0}%;background:#D97706;"></div>
-            <div style="flex:1;background:#DC2626;opacity:${fraudCount>0?1:0};"></div>
-          </div>`;
-          return `<tr id="nbatch-row-${esc(r.batch_code)}" style="cursor:pointer;" onclick="drillBatchSerials('${esc(r.batch_code)}', '${esc(r.product_name || r.batch_code)}')">
-            <td class="mono" style="font-weight:700;color:var(--text-primary);">${esc(r.batch_code)}</td>
-            <td style="color:var(--text-secondary);max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(r.product_name || '—')}</td>
-            <td><span style="color:#059669;font-weight:600;">${fmt(r.verified || 0)}</span></td>
-            <td><span style="color:#D97706;font-weight:600;">${fmt(r.warning || 0)}</span></td>
-            <td><span style="color:#DC2626;font-weight:600;">${fmt(r.fake || 0)}</span></td>
-            <td><span style="font-weight:700;color:var(--text-primary);">${fmt(r.total)}</span>${bar}</td>
-            <td><span style="color:${rateColor};font-weight:700;">${fraudRate}%</span></td>
-            <td><button class="btn btn-ghost btn-sm">Serials →</button></td>
-          </tr>`;
-        }).join('');
+        sel.innerHTML = '<option value="">— Choose a batch —</option>' +
+          batches.map(b => `<option value="${esc(b.batch_code)}">${esc(b.batch_code)}${b.product_name ? ' · ' + esc(b.product_name) : ''}</option>`).join('');
       } catch {
-        body.innerHTML = `<tr><td colspan="8" style="padding:24px;text-align:center;color:var(--text-muted);font-size:13px;">Failed to load batch analytics.</td></tr>`;
+        sel.innerHTML = '<option value="">Failed to load batches</option>';
       }
     }
 
-    async function drillBatchSerials(batchCode, productName) {
-      // Highlight selected row
-      if (_networkActiveBatch) {
-        const prev = document.getElementById(`nbatch-row-${_networkActiveBatch}`);
-        if (prev) prev.style.background = '';
+    async function onNetworkBatchChange() {
+      const code = document.getElementById('network-batch-select').value;
+      if (!code) {
+        document.getElementById('network-table-card').style.display = 'none';
+        document.getElementById('network-stats-row').style.display  = 'none';
+        document.getElementById('network-empty').style.display      = '';
+        return;
       }
-      _networkActiveBatch = batchCode;
-      const row = document.getElementById(`nbatch-row-${batchCode}`);
-      if (row) row.style.background = 'rgba(99,102,241,0.06)';
+      await loadNetworkForBatch(code);
+    }
 
-      const card = document.getElementById('network-serial-card');
-      const body = document.getElementById('network-serial-body');
-      const label = document.getElementById('network-serial-label');
+    async function loadNetworkForBatch(batchCode) {
+      const tableCard = document.getElementById('network-table-card');
+      const statsRow  = document.getElementById('network-stats-row');
+      const emptyEl   = document.getElementById('network-empty');
+      const tbody     = document.getElementById('network-serial-body');
+      const meta      = document.getElementById('network-table-meta');
 
-      card.style.display = '';
-      label.textContent = `${batchCode} · ${productName} · top 30 by scan count`;
-      body.innerHTML = `<tr class="loading-row"><td colspan="5"><div class="spinner" style="margin:0 auto;"></div></td></tr>`;
+      emptyEl.style.display   = 'none';
+      tableCard.style.display = '';
+      statsRow.style.display  = 'grid';
 
-      // scroll into view
-      card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      tbody.innerHTML = `<tr class="loading-row"><td colspan="8"><div class="spinner" style="margin:0 auto;"></div></td></tr>`;
+      ['nst-serials','nst-vpn','nst-mobile','nst-carriers','nst-serials-sub','nst-vpn-sub','nst-mobile-sub']
+        .forEach(id => { const el = document.getElementById(id); if (el) el.textContent = '—'; });
 
       try {
-        const rows = await api(`/admin/analytics/serials?batch=${encodeURIComponent(batchCode)}&limit=30`);
+        const rows = await api(`/admin/analytics/network?batch=${encodeURIComponent(batchCode)}`);
         if (!rows || !rows.length) {
-          body.innerHTML = `<tr><td colspan="5">${emptyState('No scans for this batch', 'Serials appear here once the batch has been scanned.')}</td></tr>`;
+          tbody.innerHTML = `<tr><td colspan="8">${emptyState('No scan data', 'No scans recorded for this batch yet.')}</td></tr>`;
+          meta.textContent = '0 serials scanned';
           return;
         }
-        body.innerHTML = rows.map((r, i) => {
-          const limit = r.scan_limit ?? '—';
-          const exceeded = typeof r.scan_limit === 'number' && r.scan_count >= r.scan_limit;
-          const statusDot = exceeded
-            ? `<span style="display:inline-flex;align-items:center;gap:5px;color:#DC2626;font-weight:600;font-size:12px;">
-                <span style="width:7px;height:7px;border-radius:50%;background:#DC2626;display:inline-block;"></span>EXCEEDED</span>`
-            : `<span style="display:inline-flex;align-items:center;gap:5px;color:#059669;font-size:12px;">
-                <span style="width:7px;height:7px;border-radius:50%;background:#059669;display:inline-block;"></span>OK</span>`;
-          return `<tr style="${exceeded ? 'background:rgba(220,38,38,0.04);' : ''}">
-            <td style="color:var(--text-muted);font-size:12px;">${i + 1}</td>
-            <td class="mono" style="font-weight:700;">${esc(r.serial_number || r.seq || '—')}</td>
-            <td><span style="font-size:18px;font-weight:700;color:${exceeded ? '#DC2626' : 'var(--text-primary)'};">${fmt(r.scan_count)}</span></td>
-            <td style="color:var(--text-secondary);">${limit}</td>
-            <td>${statusDot}</td>
+
+        // Aggregate stats
+        let totalScans = 0, vpnScans = 0, mobileScans = 0;
+        const allCarriers = new Set();
+        for (const r of rows) {
+          totalScans += r.scan_count;
+          for (const s of r.scans) {
+            const cls = classifyISP(s.isp);
+            if (cls.type === 'vpn')    vpnScans++;
+            if (cls.type === 'mobile') mobileScans++;
+            if (s.isp) allCarriers.add(s.isp);
+          }
+        }
+        const vpnPct    = totalScans > 0 ? (vpnScans    / totalScans * 100).toFixed(1) : '0.0';
+        const mobilePct = totalScans > 0 ? (mobileScans / totalScans * 100).toFixed(1) : '0.0';
+
+        document.getElementById('nst-serials').textContent     = fmt(rows.length);
+        document.getElementById('nst-serials-sub').textContent = `${fmt(totalScans)} total scans`;
+        document.getElementById('nst-vpn').textContent         = vpnPct + '%';
+        document.getElementById('nst-vpn-sub').textContent     = `${fmt(vpnScans)} of ${fmt(totalScans)} scans`;
+        document.getElementById('nst-mobile').textContent      = mobilePct + '%';
+        document.getElementById('nst-mobile-sub').textContent  = `${fmt(mobileScans)} of ${fmt(totalScans)} scans`;
+        document.getElementById('nst-carriers').textContent    = fmt(allCarriers.size);
+
+        const vpnEl = document.getElementById('nst-vpn');
+        vpnEl.className = 'stat-value ' + (parseFloat(vpnPct) < 5 ? 'green' : parseFloat(vpnPct) < 20 ? 'amber' : 'red');
+
+        meta.textContent = `${rows.length} serial${rows.length === 1 ? '' : 's'} · ${fmt(totalScans)} scans · ${allCarriers.size} carrier${allCarriers.size === 1 ? '' : 's'}`;
+
+        tbody.innerHTML = rows.map(r => {
+          const types = [...new Set(r.scans.map(s => classifyISP(s.isp).type))];
+          const badges = types.map(netBadge).join(' ');
+
+          // Top carrier by frequency
+          const carrierCount = {};
+          for (const s of r.scans) if (s.isp) carrierCount[s.isp] = (carrierCount[s.isp] || 0) + 1;
+          const topCarrier = Object.entries(carrierCount).sort((a,b) => b[1]-a[1])[0]?.[0] || null;
+          const carrierShort = topCarrier ? (topCarrier.length > 38 ? topCarrier.slice(0, 36) + '…' : topCarrier) : '—';
+
+          // Countries
+          const countries = [...new Set(r.scans.map(s => s.country).filter(Boolean))];
+          const countryStr = countries.length ? countries.slice(0, 3).join(', ') + (countries.length > 3 ? ` +${countries.length - 3}` : '') : '—';
+
+          const lastSeen = r.scans[0]?.scanned_at;
+          const rowBg    = types.includes('vpn') ? 'background:rgba(124,58,237,0.025);' : '';
+
+          // Expanded detail rows (pre-built)
+          const detailRows = r.scans.slice(0, 25).map(s => {
+            const cls = classifyISP(s.isp);
+            const rc  = s.result === 'verified' ? '#059669' : s.result === 'fake' ? '#DC2626' : '#D97706';
+            const loc = [s.city, s.country].filter(Boolean).join(', ') || '—';
+            const ts  = s.scanned_at ? new Date(s.scanned_at).toLocaleString('en-IN', { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' }) : '—';
+            return `<tr style="border-top:1px solid var(--border);">
+              <td style="padding:5px 10px;font-size:11px;color:var(--text-muted);white-space:nowrap;">${ts}</td>
+              <td class="mono" style="padding:5px 10px;font-size:11px;color:var(--text-secondary);">${esc(s.ip || '—')}</td>
+              <td style="padding:5px 10px;font-size:11px;color:var(--text-primary);max-width:240px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${esc(s.isp||'')}">${esc(s.isp || '—')}</td>
+              <td style="padding:5px 10px;">${netBadge(cls.type)}</td>
+              <td style="padding:5px 10px;font-size:11px;color:var(--text-secondary);">${esc(loc)}</td>
+              <td style="padding:5px 10px;font-size:11px;font-weight:700;color:${rc};text-transform:capitalize;">${esc(s.result)}</td>
+            </tr>`;
+          }).join('') + (r.scans.length > 25 ? `<tr><td colspan="6" style="padding:6px 10px;text-align:center;color:var(--text-muted);font-size:11px;">+ ${r.scans.length - 25} more scan${r.scans.length - 25 === 1 ? '' : 's'}</td></tr>` : '');
+
+          return `<tr style="cursor:pointer;${rowBg}" onclick="toggleNetworkRow(this)">
+            <td style="color:var(--text-muted);font-size:12px;">${r.seq != null ? r.seq : '—'}</td>
+            <td class="mono" style="font-size:12px;font-weight:700;">${esc(r.serial)}</td>
+            <td style="text-align:center;"><span style="font-size:20px;font-weight:800;color:var(--text-primary);">${r.scan_count}</span></td>
+            <td style="white-space:nowrap;">${badges || netBadge('unknown')}</td>
+            <td style="font-size:12px;color:var(--text-secondary);max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${esc(topCarrier||'')}">${esc(carrierShort)}</td>
+            <td style="font-size:12px;color:var(--text-secondary);">${esc(countryStr)}</td>
+            <td style="font-size:12px;color:var(--text-muted);white-space:nowrap;">${lastSeen ? relTime(lastSeen) : '—'}</td>
+            <td style="text-align:center;padding:0 8px;">
+              <svg class="net-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="color:var(--text-muted);transition:transform 0.18s;display:block;margin:0 auto;"><polyline points="6 9 12 15 18 9"/></svg>
+            </td>
+          </tr>
+          <tr class="net-detail-row" style="display:none;">
+            <td colspan="8" style="padding:0;background:var(--bg-hover,rgba(0,0,0,0.02));">
+              <div style="padding:10px 16px 14px;">
+                <table style="width:100%;border-collapse:collapse;">
+                  <thead><tr style="color:var(--text-muted);">
+                    <th style="padding:4px 10px;text-align:left;font-size:11px;font-weight:600;border-bottom:1px solid var(--border);">Time</th>
+                    <th style="padding:4px 10px;text-align:left;font-size:11px;font-weight:600;border-bottom:1px solid var(--border);">IP</th>
+                    <th style="padding:4px 10px;text-align:left;font-size:11px;font-weight:600;border-bottom:1px solid var(--border);">Carrier / ISP</th>
+                    <th style="padding:4px 10px;text-align:left;font-size:11px;font-weight:600;border-bottom:1px solid var(--border);">Type</th>
+                    <th style="padding:4px 10px;text-align:left;font-size:11px;font-weight:600;border-bottom:1px solid var(--border);">Location</th>
+                    <th style="padding:4px 10px;text-align:left;font-size:11px;font-weight:600;border-bottom:1px solid var(--border);">Result</th>
+                  </tr></thead>
+                  <tbody>${detailRows}</tbody>
+                </table>
+              </div>
+            </td>
           </tr>`;
         }).join('');
-      } catch {
-        body.innerHTML = `<tr><td colspan="5" style="padding:24px;text-align:center;color:var(--text-muted);font-size:13px;">Failed to load serial data.</td></tr>`;
+
+      } catch (err) {
+        tbody.innerHTML = `<tr><td colspan="8" style="padding:24px;text-align:center;color:var(--text-muted);font-size:13px;">Failed to load network data.</td></tr>`;
+        console.error('[network]', err);
       }
     }
 
-    function closeSerialDrill() {
-      document.getElementById('network-serial-card').style.display = 'none';
-      if (_networkActiveBatch) {
-        const row = document.getElementById(`nbatch-row-${_networkActiveBatch}`);
-        if (row) row.style.background = '';
-        _networkActiveBatch = null;
-      }
+    function toggleNetworkRow(clickedTr) {
+      const detailTr = clickedTr.nextElementSibling;
+      if (!detailTr || !detailTr.classList.contains('net-detail-row')) return;
+      const chevron = clickedTr.querySelector('.net-chevron');
+      const open    = detailTr.style.display !== 'none';
+      detailTr.style.display        = open ? 'none' : '';
+      if (chevron) chevron.style.transform = open ? '' : 'rotate(180deg)';
     }
 
     async function loadGeoTable() {

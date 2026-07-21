@@ -31,4 +31,10 @@ module.exports = async function analyticsRoutes(fastify) {
     if (!batch) return reply.code(400).send({ error: 'batch query param required', code: 'MISSING_PARAM' });
     return db.getTopScannedSerials(batch, Math.min(parseInt(limit, 10) || 30, 100));
   });
+
+  fastify.get('/analytics/network', { preHandler: [adminRateLimit] }, async (request, reply) => {
+    const { batch } = request.query;
+    if (!batch) return reply.code(400).send({ error: 'batch query param required', code: 'MISSING_PARAM' });
+    return db.getSerialNetworkData(batch);
+  });
 };

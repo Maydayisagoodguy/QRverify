@@ -615,6 +615,50 @@ async function getTopScannedSerials(batchCode, limit = 30) {
     .slice(0, limit);
 }
 
+async function getSerialNetworkData(batchCode) {
+  const { data: prods, error: pErr } = await db
+    .from('products')
+    .select('serial, seq')
+    .eq('batch_code', batchCode)
+    .order('seq', { ascending: true })
+    .limit(100000);
+  if (pErr) throw pErr;
+  if (!prods?.length) return [];
+
+  const serials = prods.map(p => p.serial);
+  const seqMap  = Object.fromEntries(prods.map(p => [p.serial, p.seq]));
+
+  const { data: scans, error: sErr } = await db
+    .from('scan_logs')
+    .select('serial, ip, isp, country, city, result, scanned_at')
+    .in('serial', serials)
+    .order('scanned_at', { ascending: false })
+    .limit(10000);
+  if (sErr) throw sErr;
+
+  const serialMap = {};
+  for (const s of (scans || [])) {
+    if (!serialMap[s.serial]) serialMap[s.serial] = [];
+    serialMap[s.serial].push({
+      ip:         s.ip         || null,
+      isp:        s.isp        || null,
+      country:    s.country    || null,
+      city:       s.city       || null,
+      result:     s.result,
+      scanned_at: s.scanned_at,
+    });
+  }
+
+  return Object.entries(serialMap)
+    .map(([serial, scanList]) => ({
+      serial,
+      seq:        seqMap[serial] ?? null,
+      scan_count: scanList.length,
+      scans:      scanList,
+    }))
+    .sort((a, b) => (a.seq ?? 999999) - (b.seq ?? 999999));
+}
+
 async function getMapData(limit = 500) {
   const { data, error } = await db
     .from('scan_logs')
@@ -687,4 +731,5 @@ module.exports = {
   getMapData,
   getBatchScanSummary,
   getTopScannedSerials,
+  getSerialNetworkData,
 };
