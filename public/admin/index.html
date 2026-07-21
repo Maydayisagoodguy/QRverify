@@ -1326,7 +1326,9 @@
 
     document.querySelectorAll('.map-filter-btn').forEach(btn => {
       btn.addEventListener('click', () => {
-        document.querySelectorAll('.map-filter-btn').forEach(b => b.classList.remove('active'));
+        // Panel buttons use data-panel-filter; skip them here
+        if (!btn.dataset.filter) return;
+        document.querySelectorAll('[data-filter]').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         currentMapFilter = btn.dataset.filter;
         renderMapMarkers(currentMapFilter);
@@ -1695,6 +1697,7 @@
 
     function renderMapMarkers(filter) {
       if (!mapInstance) return;
+      if (!filter) filter = currentMapFilter || 'all';
       if (clusterLayer) mapInstance.removeLayer(clusterLayer);
 
       const colors = { verified: '#22C55E', warning: '#F59E0B', fake: '#EF4444', inactive: '#9CA3AF' };
@@ -1737,17 +1740,17 @@
       const label = document.getElementById('map-count-label');
       if (label) label.textContent = filter === 'all' ? `${points.length} scans` : `${points.length} ${filter}`;
 
-      // circleMarker = SVG path, not a DOM node — renders 1000+ points without jank
-      // addLayers() bulk-adds to the cluster group in one pass (much faster than one-by-one)
+      // L.marker + divIcon required so singleMarkerMode:true can override the icon
+      // (singleMarkerMode only works with DOM-based L.marker, not SVG circleMarker)
       const markers = points.map(d => {
         const color = colors[d.result] || '#9CA3AF';
-        const m = L.circleMarker([d.lat, d.lng], {
-          radius: 6,
-          fillColor: color,
-          color: '#fff',
-          weight: 1.5,
-          opacity: 1,
-          fillOpacity: 0.85,
+        const m = L.marker([d.lat, d.lng], {
+          icon: L.divIcon({
+            html: `<div style="width:12px;height:12px;border-radius:50%;background:${color};border:2px solid rgba(255,255,255,0.9);box-shadow:0 1px 4px rgba(0,0,0,0.4);"></div>`,
+            className: '',
+            iconSize: [12, 12],
+            iconAnchor: [6, 6],
+          }),
         });
         m._scanData = d;
         m.on('click', function(e) {
