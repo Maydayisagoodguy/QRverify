@@ -22,4 +22,14 @@ module.exports = async function analyticsRoutes(fastify) {
   fastify.get('/analytics/isp', { preHandler: [adminRateLimit, adminAuth] }, async () => {
     return db.getISPSummary();
   });
+
+  fastify.get('/analytics/batches', { preHandler: [adminRateLimit, adminAuth] }, async () => {
+    return db.getBatchScanSummary();
+  });
+
+  fastify.get('/analytics/serials', { preHandler: [adminRateLimit, adminAuth] }, async (request, reply) => {
+    const { batch, limit = '30' } = request.query;
+    if (!batch) return reply.code(400).send({ error: 'batch query param required', code: 'MISSING_PARAM' });
+    return db.getTopScannedSerials(batch, Math.min(parseInt(limit, 10) || 30, 100));
+  });
 };

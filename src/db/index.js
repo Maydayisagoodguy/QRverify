@@ -110,6 +110,66 @@ async function setScanLimitForBatch(batchCode, limit) {
   if (error) throw error;
 }
 
+async function setScanLimitForRange(batchCode, fromSeq, toSeq, limit) {
+  const { error } = await db
+    .from('products')
+    .update({ scan_limit: limit })
+    .eq('batch_code', batchCode)
+    .gte('seq', fromSeq)
+    .lte('seq', toSeq);
+  if (error) throw error;
+}
+
+async function clearScanLimitForRange(batchCode, fromSeq, toSeq) {
+  const { error } = await db
+    .from('products')
+    .update({ scan_limit: null })
+    .eq('batch_code', batchCode)
+    .gte('seq', fromSeq)
+    .lte('seq', toSeq);
+  if (error) throw error;
+}
+
+async function getSerialOverrideCounts() {
+  const { data, error } = await db
+    .from('products')
+    .select('batch_code, scan_limit')
+    .not('scan_limit', 'is', null);
+  if (error) throw error;
+  const counts = {};
+  for (const r of (data || [])) {
+    counts[r.batch_code] = (counts[r.batch_code] || 0) + 1;
+  }
+  return counts;
+}
+
+async function getSerialLimitGroups(batchCode) {
+  const { data, error } = await db
+    .from('products')
+    .select('seq, scan_limit')
+    .eq('batch_code', batchCode)
+    .not('scan_limit', 'is', null)
+    .order('seq', { ascending: true });
+  if (error) throw error;
+
+  const rows = data || [];
+  if (!rows.length) return [];
+
+  // Collapse consecutive same-limit seqs into ranges
+  const groups = [];
+  let cur = null;
+  for (const r of rows) {
+    if (!cur || cur.limit !== r.scan_limit || cur.toSeq + 1 !== r.seq) {
+      cur = { fromSeq: r.seq, toSeq: r.seq, limit: r.scan_limit, count: 1 };
+      groups.push(cur);
+    } else {
+      cur.toSeq = r.seq;
+      cur.count++;
+    }
+  }
+  return groups;
+}
+
 // ── Products ──────────────────────────────────────────────────────
 
 async function getProduct(serial) {
@@ -174,7 +234,7 @@ async function getMaxSeq(batchCode) {
 async function getSerialsByBatch(batchCode, { remarkFilter } = {}) {
   let q = db
     .from('products')
-    .select('seq, serial, is_active, remark, remark_updated_at')
+    .select('seq, serial, is_active, remark, remark_updated_at, scan_limit')
     .eq('batch_code', batchCode)
     .order('seq', { ascending: true })
     .limit(100000);
@@ -205,6 +265,7 @@ async function getSerialsByBatch(batchCode, { remarkFilter } = {}) {
     remark:             r.remark || null,
     remark_updated_at:  r.remark_updated_at || null,
     scan_count:         scanCount[r.serial] || 0,
+    scan_limit:         r.scan_limit ?? null,
   }));
 }
 
@@ -492,6 +553,56 @@ async function getGeoSummary() {
   return Object.values(map).sort((a, b) => b.total - a.total);
 }
 
+async function getBatchScanSummary() {
+  const [scanRes, prodRes, batchRes] = await Promise.all([
+    db.from('scan_logs').select('serial, result'),
+    db.from('products').select('serial, batch_code, product_name'),
+    db.from('batches').select('batch_code, scan_limit'),
+  ]);
+
+  const prodMap   = Object.fromEntries((prodRes.data || []).map(p => [p.serial, p]));
+  const batchLimits = Object.fromEntries((batchRes.data || []).map(b => [b.batch_code, b.scan_limit]));
+
+  const map = {};
+  for (const s of (scanRes.data || [])) {
+    const prod = prodMap[s.serial];
+    if (!prod) continue;
+    const bc = prod.batch_code;
+    if (!map[bc]) map[bc] = { batch_code: bc, product_name: prod.product_name, scan_limit: batchLimits[bc] ?? null, verified: 0, warning: 0, fake: 0, inactive: 0, total: 0 };
+    map[bc][s.result] = (map[bc][s.result] || 0) + 1;
+    map[bc].total++;
+  }
+  return Object.values(map).sort((a, b) => b.total - a.total);
+}
+
+async function getTopScannedSerials(batchCode, limit = 30) {
+  const { data: prods, error: pErr } = await db
+    .from('products')
+    .select('serial, seq, remark, scan_limit, product_name')
+    .eq('batch_code', batchCode);
+  if (pErr) throw pErr;
+  if (!prods?.length) return [];
+
+  const serials = prods.map(p => p.serial);
+  const { data: scanRows } = await db
+    .from('scan_logs')
+    .select('serial, result')
+    .in('serial', serials);
+
+  const scanMap = {};
+  for (const s of (scanRows || [])) {
+    if (!scanMap[s.serial]) scanMap[s.serial] = { verified: 0, warning: 0, fake: 0, inactive: 0, total: 0 };
+    scanMap[s.serial][s.result] = (scanMap[s.serial][s.result] || 0) + 1;
+    scanMap[s.serial].total++;
+  }
+
+  return prods
+    .filter(p => scanMap[p.serial])
+    .map(p => ({ serial: p.serial, seq: p.seq, remark: p.remark, scan_limit: p.scan_limit, ...scanMap[p.serial] }))
+    .sort((a, b) => b.total - a.total)
+    .slice(0, limit);
+}
+
 async function getMapData(limit = 500) {
   const { data, error } = await db
     .from('scan_logs')
@@ -527,6 +638,10 @@ module.exports = {
   getBatches,
   getBatchById,
   setScanLimitForBatch,
+  setScanLimitForRange,
+  clearScanLimitForRange,
+  getSerialLimitGroups,
+  getSerialOverrideCounts,
   // Products
   getProduct,
   insertProducts,
@@ -558,4 +673,6 @@ module.exports = {
   getISPSummary,
   getGeoSummary,
   getMapData,
+  getBatchScanSummary,
+  getTopScannedSerials,
 };

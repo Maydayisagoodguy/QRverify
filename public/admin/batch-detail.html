@@ -406,6 +406,37 @@
       </div>
     </div>
 
+    <!-- Set Scan Limit for Serial Range -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Set Scan Limit for Serial Range</span>
+        <span style="font-size:12px;color:var(--text-muted);">Override the batch-level limit for specific serials</span>
+      </div>
+      <div class="card-body">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">From Seq</label>
+            <input type="number" class="form-input w-sm" id="sl-from-seq" min="1" placeholder="1"/>
+          </div>
+          <div class="form-group">
+            <label class="form-label">To Seq</label>
+            <input type="number" class="form-input w-sm" id="sl-to-seq" min="1" placeholder="100"/>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Scan Limit</label>
+            <input type="number" class="form-input w-sm" id="sl-limit" min="1" max="999" placeholder="e.g. 3"/>
+          </div>
+          <button class="btn btn-primary" onclick="applySerialLimit()">Apply</button>
+          <button class="btn btn-danger-soft" onclick="clearSerialLimit()">Clear Range</button>
+        </div>
+        <!-- Live groups -->
+        <div id="sl-groups-wrap" style="margin-top:14px;display:none;">
+          <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">Active Serial Overrides</div>
+          <div id="sl-groups"></div>
+        </div>
+      </div>
+    </div>
+
     <!-- Serial Table -->
     <div class="card">
       <div class="card-header">
@@ -605,6 +636,73 @@
     loadSerials(val || null);
   }
 
+  // ── Serial scan-limit management ───────────────────────────────────
+  async function loadSerialLimitGroups() {
+    try {
+      const groups = await api(`/admin/batches/${encodeURIComponent(batchCode)}/serial-limits`);
+      const wrap = document.getElementById('sl-groups-wrap');
+      const container = document.getElementById('sl-groups');
+      if (!groups || !groups.length) {
+        wrap.style.display = 'none';
+        return;
+      }
+      wrap.style.display = '';
+      container.innerHTML = groups.map(g => `
+        <div style="display:flex;align-items:center;gap:10px;padding:7px 12px;margin-bottom:4px;background:var(--bg-alt,#F8F9FC);border:1px solid var(--border);border-radius:6px;font-size:13px;">
+          <span style="color:var(--text-muted);font-size:12px;min-width:120px;">Seq ${g.fromSeq} – ${g.toSeq}</span>
+          <span style="font-size:11px;color:var(--text-muted);">${g.count} unit${g.count === 1 ? '' : 's'}</span>
+          <span style="font-weight:700;color:#6366F1;margin-left:auto;">Limit: ${g.limit}</span>
+          <button class="btn btn-danger-soft btn-sm" style="font-size:11px;"
+            onclick="clearSerialLimitExact(${g.fromSeq}, ${g.toSeq})">Clear</button>
+        </div>`).join('');
+    } catch {
+      document.getElementById('sl-groups-wrap').style.display = 'none';
+    }
+  }
+
+  async function applySerialLimit() {
+    const fromSeq = parseInt(document.getElementById('sl-from-seq').value, 10);
+    const toSeq   = parseInt(document.getElementById('sl-to-seq').value, 10);
+    const limit   = parseInt(document.getElementById('sl-limit').value, 10);
+    if (!fromSeq || !toSeq || isNaN(limit)) { toast('Fill in From Seq, To Seq, and Limit', 'error'); return; }
+    if (fromSeq > toSeq) { toast('From Seq must be ≤ To Seq', 'error'); return; }
+    if (limit < 1 || limit > 999) { toast('Limit must be 1–999', 'error'); return; }
+    try {
+      await api(`/admin/batches/${encodeURIComponent(batchCode)}/serials/scan-limit`, {
+        method: 'POST',
+        body: { from_seq: fromSeq, to_seq: toSeq, limit },
+      });
+      const count = toSeq - fromSeq + 1;
+      toast(`Limit ${limit} applied to ${count} serial${count > 1 ? 's' : ''}`, 'success');
+      document.getElementById('sl-limit').value = '';
+      await loadSerialLimitGroups();
+      loadSerials();
+    } catch (err) {
+      toast('Failed: ' + err.message, 'error');
+    }
+  }
+
+  async function clearSerialLimit() {
+    const fromSeq = parseInt(document.getElementById('sl-from-seq').value, 10);
+    const toSeq   = parseInt(document.getElementById('sl-to-seq').value, 10);
+    if (!fromSeq || !toSeq) { toast('Enter From and To Seq to clear', 'error'); return; }
+    await clearSerialLimitExact(fromSeq, toSeq);
+  }
+
+  async function clearSerialLimitExact(fromSeq, toSeq) {
+    try {
+      await api(`/admin/batches/${encodeURIComponent(batchCode)}/serials/scan-limit`, {
+        method: 'DELETE',
+        body: { from_seq: fromSeq, to_seq: toSeq },
+      });
+      toast(`Cleared limit for serials ${fromSeq}–${toSeq}`, 'success');
+      await loadSerialLimitGroups();
+      loadSerials();
+    } catch (err) {
+      toast('Failed: ' + err.message, 'error');
+    }
+  }
+
   // ── Apply remark ───────────────────────────────────────────────────
   async function applyRemark() {
     const fromSeq    = parseInt(document.getElementById('from-seq').value, 10);
@@ -692,7 +790,7 @@
     const remarkFilter = document.getElementById('remark-filter').value;
     // Load global limit first so serials render with correct threshold
     await loadGlobalLimit();
-    await Promise.all([loadBatchDetail(), loadSerials(remarkFilter || null), loadRemarkFilter()]);
+    await Promise.all([loadBatchDetail(), loadSerials(remarkFilter || null), loadRemarkFilter(), loadSerialLimitGroups()]);
   }
 
   // ── Init ───────────────────────────────────────────────────────────

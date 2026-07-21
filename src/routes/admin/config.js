@@ -6,19 +6,22 @@ const db = require('../../db');
 
 module.exports = async function configRoutes(fastify) {
 
-  // GET /admin/config — global config + per-batch limits
+  // GET /admin/config — global config + per-batch limits + serial override counts
   fastify.get('/config', { preHandler: [adminRateLimit, adminAuth] }, async () => {
-    const [scanLimitStr, batches] = await Promise.all([
+    const [scanLimitStr, batches, overrideCount] = await Promise.all([
       db.getConfigValue('scan_limit_default', '1'),
       db.getBatches(),
+      db.getSerialOverrideCounts(),
     ]);
+
     return {
       scan_limit_default: parseInt(scanLimitStr || '1', 10) || 1,
       batches: batches.map(b => ({
-        batch_code:   b.batch_code,
-        product_name: b.product_name,
-        total:        b.total,
-        scan_limit:   b.scan_limit ?? null,
+        batch_code:       b.batch_code,
+        product_name:     b.product_name,
+        total:            b.total,
+        scan_limit:       b.scan_limit ?? null,
+        serial_overrides: overrideCount[b.batch_code] || 0,
       })),
     };
   });

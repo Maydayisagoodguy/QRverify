@@ -1080,32 +1080,59 @@
         <div class="section-header">
           <div>
             <div class="section-eyebrow">Analytics</div>
-            <span class="section-title">Network &amp; Carriers</span>
+            <span class="section-title">Batch &amp; Serial Analytics</span>
           </div>
         </div>
 
+        <!-- Batch-wise scan summary -->
         <div class="table-card" style="margin-bottom:20px;">
           <div class="card-header">
-            <span class="card-title">Scans by Network / ISP</span>
-            <span class="card-meta" id="isp-count-label">All networks</span>
-          </div>
-          <div style="padding:14px 24px 10px;font-size:13px;color:var(--text-muted);line-height:1.5;border-bottom:1px solid var(--border);">
-            Shows which mobile carrier or internet provider each scan came from — Jio, Airtel, BSNL, etc. Populated as new scans arrive after the v3 migration.
+            <span class="card-title">Scans by Batch</span>
+            <span class="card-meta" id="network-batch-label">All batches · click a row to see top serials</span>
           </div>
           <div class="table-wrap">
             <table>
               <thead>
                 <tr>
-                  <th>Network / ISP</th>
+                  <th>Batch Code</th>
+                  <th>Product</th>
                   <th style="color:#059669;">Verified</th>
                   <th style="color:#D97706;">Warning</th>
                   <th style="color:#DC2626;">Fake</th>
-                  <th>Total</th>
+                  <th>Total Scans</th>
                   <th>Fraud Rate</th>
+                  <th>Action</th>
                 </tr>
               </thead>
-              <tbody id="isp-body">
-                <tr class="loading-row"><td colspan="6"><div class="spinner" style="margin:0 auto;"></div></td></tr>
+              <tbody id="network-batch-body">
+                <tr class="loading-row"><td colspan="8"><div class="spinner" style="margin:0 auto;"></div></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Top scanned serials drill-down (hidden until batch is clicked) -->
+        <div class="table-card" id="network-serial-card" style="display:none;">
+          <div class="card-header" style="justify-content:space-between;">
+            <div>
+              <span class="card-title">Top Scanned Serials</span>
+              <span class="card-meta" id="network-serial-label">—</span>
+            </div>
+            <button class="btn btn-ghost btn-sm" onclick="closeSerialDrill()" style="flex-shrink:0;">✕ Close</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Serial</th>
+                  <th>Scan Count</th>
+                  <th>Scan Limit</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="network-serial-body">
+                <tr class="loading-row"><td colspan="5"><div class="spinner" style="margin:0 auto;"></div></td></tr>
               </tbody>
             </table>
           </div>
@@ -1149,26 +1176,28 @@
           </div>
         </div>
 
-        <!-- Per-batch overrides -->
+        <!-- Per-batch overrides with serial drill-down -->
         <div class="table-card">
           <div class="card-header">
-            <span class="card-title">Per-Batch Overrides</span>
-            <span class="card-meta">Override the global limit for specific batches</span>
+            <span class="card-title">Batch &amp; Serial Limits</span>
+            <span class="card-meta">Set batch-level or serial-range overrides — click a row to expand</span>
           </div>
           <div class="table-wrap">
             <table>
               <thead>
                 <tr>
+                  <th></th>
                   <th>Batch Code</th>
                   <th>Product</th>
                   <th>Units</th>
-                  <th>Scan Limit</th>
+                  <th>Batch Limit</th>
+                  <th>Serial Overrides</th>
                   <th>Effective</th>
                   <th>Action</th>
                 </tr>
               </thead>
               <tbody id="limits-body">
-                <tr class="loading-row"><td colspan="6"><div class="spinner" style="margin:0 auto;"></div></td></tr>
+                <tr class="loading-row"><td colspan="8"><div class="spinner" style="margin:0 auto;"></div></td></tr>
               </tbody>
             </table>
           </div>
@@ -1369,32 +1398,99 @@
       await Promise.all([loadAlertFeed(), loadRecentScans(), loadMap(), loadGeoTable()]);
     }
 
+    let _networkActiveBatch = null;
+
     async function loadNetworkSection() {
-      const body = document.getElementById('isp-body');
+      const body = document.getElementById('network-batch-body');
+      document.getElementById('network-serial-card').style.display = 'none';
+      _networkActiveBatch = null;
       try {
-        const rows = await api('/admin/analytics/isp');
-        if (!rows.length) {
-          body.innerHTML = `<tr><td colspan="6">${emptyState('No network data yet', 'ISP data is collected from new scans after running the v3 migration in Supabase.')}</td></tr>`;
+        const rows = await api('/admin/analytics/batches');
+        if (!rows || !rows.length) {
+          body.innerHTML = `<tr><td colspan="8">${emptyState('No scan data yet', 'Scans will appear here once QR codes are distributed.')}</td></tr>`;
           return;
         }
-        document.getElementById('isp-count-label').textContent = `${rows.length} network${rows.length === 1 ? '' : 's'}`;
+        document.getElementById('network-batch-label').textContent = `${rows.length} batch${rows.length === 1 ? '' : 'es'} · click a row to see top serials`;
         body.innerHTML = rows.map(r => {
           const fraudCount = (r.warning || 0) + (r.fake || 0);
           const fraudRate  = r.total > 0 ? (fraudCount / r.total * 100).toFixed(1) : '0.0';
           const rateColor  = fraudRate < 5 ? '#059669' : fraudRate < 15 ? '#D97706' : '#DC2626';
-          // Strip AS number prefix if present, e.g. "AS55836 Reliance Jio" → "Reliance Jio"
-          const displayName = (r.isp || '').replace(/^AS\d+\s+/i, '') || r.isp;
-          return `<tr>
-            <td style="font-weight:600;color:var(--text-primary);">${esc(displayName)}</td>
+          const verifiedPct = r.total > 0 ? Math.round((r.verified || 0) / r.total * 100) : 0;
+          const bar = `<div style="display:flex;height:6px;border-radius:3px;overflow:hidden;width:80px;background:var(--border);margin-top:2px;">
+            <div style="width:${verifiedPct}%;background:#059669;"></div>
+            <div style="width:${r.total > 0 ? Math.round((r.warning||0)/r.total*100) : 0}%;background:#D97706;"></div>
+            <div style="flex:1;background:#DC2626;opacity:${fraudCount>0?1:0};"></div>
+          </div>`;
+          return `<tr id="nbatch-row-${esc(r.batch_code)}" style="cursor:pointer;" onclick="drillBatchSerials('${esc(r.batch_code)}', '${esc(r.product_name || r.batch_code)}')">
+            <td class="mono" style="font-weight:700;color:var(--text-primary);">${esc(r.batch_code)}</td>
+            <td style="color:var(--text-secondary);max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(r.product_name || '—')}</td>
             <td><span style="color:#059669;font-weight:600;">${fmt(r.verified || 0)}</span></td>
             <td><span style="color:#D97706;font-weight:600;">${fmt(r.warning || 0)}</span></td>
             <td><span style="color:#DC2626;font-weight:600;">${fmt(r.fake || 0)}</span></td>
-            <td style="font-weight:700;color:var(--text-primary);">${fmt(r.total)}</td>
+            <td><span style="font-weight:700;color:var(--text-primary);">${fmt(r.total)}</span>${bar}</td>
             <td><span style="color:${rateColor};font-weight:700;">${fraudRate}%</span></td>
+            <td><button class="btn btn-ghost btn-sm">Serials →</button></td>
           </tr>`;
         }).join('');
       } catch {
-        body.innerHTML = `<tr><td colspan="6" style="padding:24px;text-align:center;color:var(--text-muted);font-size:13px;">Failed to load network data.</td></tr>`;
+        body.innerHTML = `<tr><td colspan="8" style="padding:24px;text-align:center;color:var(--text-muted);font-size:13px;">Failed to load batch analytics.</td></tr>`;
+      }
+    }
+
+    async function drillBatchSerials(batchCode, productName) {
+      // Highlight selected row
+      if (_networkActiveBatch) {
+        const prev = document.getElementById(`nbatch-row-${_networkActiveBatch}`);
+        if (prev) prev.style.background = '';
+      }
+      _networkActiveBatch = batchCode;
+      const row = document.getElementById(`nbatch-row-${batchCode}`);
+      if (row) row.style.background = 'rgba(99,102,241,0.06)';
+
+      const card = document.getElementById('network-serial-card');
+      const body = document.getElementById('network-serial-body');
+      const label = document.getElementById('network-serial-label');
+
+      card.style.display = '';
+      label.textContent = `${batchCode} · ${productName} · top 30 by scan count`;
+      body.innerHTML = `<tr class="loading-row"><td colspan="5"><div class="spinner" style="margin:0 auto;"></div></td></tr>`;
+
+      // scroll into view
+      card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+      try {
+        const rows = await api(`/admin/analytics/serials?batch=${encodeURIComponent(batchCode)}&limit=30`);
+        if (!rows || !rows.length) {
+          body.innerHTML = `<tr><td colspan="5">${emptyState('No scans for this batch', 'Serials appear here once the batch has been scanned.')}</td></tr>`;
+          return;
+        }
+        body.innerHTML = rows.map((r, i) => {
+          const limit = r.scan_limit ?? '—';
+          const exceeded = typeof r.scan_limit === 'number' && r.scan_count >= r.scan_limit;
+          const statusDot = exceeded
+            ? `<span style="display:inline-flex;align-items:center;gap:5px;color:#DC2626;font-weight:600;font-size:12px;">
+                <span style="width:7px;height:7px;border-radius:50%;background:#DC2626;display:inline-block;"></span>EXCEEDED</span>`
+            : `<span style="display:inline-flex;align-items:center;gap:5px;color:#059669;font-size:12px;">
+                <span style="width:7px;height:7px;border-radius:50%;background:#059669;display:inline-block;"></span>OK</span>`;
+          return `<tr style="${exceeded ? 'background:rgba(220,38,38,0.04);' : ''}">
+            <td style="color:var(--text-muted);font-size:12px;">${i + 1}</td>
+            <td class="mono" style="font-weight:700;">${esc(r.serial_number || r.seq || '—')}</td>
+            <td><span style="font-size:18px;font-weight:700;color:${exceeded ? '#DC2626' : 'var(--text-primary)'};">${fmt(r.scan_count)}</span></td>
+            <td style="color:var(--text-secondary);">${limit}</td>
+            <td>${statusDot}</td>
+          </tr>`;
+        }).join('');
+      } catch {
+        body.innerHTML = `<tr><td colspan="5" style="padding:24px;text-align:center;color:var(--text-muted);font-size:13px;">Failed to load serial data.</td></tr>`;
+      }
+    }
+
+    function closeSerialDrill() {
+      document.getElementById('network-serial-card').style.display = 'none';
+      if (_networkActiveBatch) {
+        const row = document.getElementById(`nbatch-row-${_networkActiveBatch}`);
+        if (row) row.style.background = '';
+        _networkActiveBatch = null;
       }
     }
 
@@ -1960,6 +2056,7 @@
 
     // ── Scan Limits ────────────────────────────────────────────────
     let _globalScanLimit = 1;
+    const _limitsExpanded = new Set();
 
     async function loadLimits() {
       const body = document.getElementById('limits-body');
@@ -1970,23 +2067,40 @@
         document.getElementById('global-limit-input').value = _globalScanLimit;
 
         if (!data.batches || !data.batches.length) {
-          body.innerHTML = `<tr><td colspan="6">${emptyState('No batches yet', 'Create a batch to set per-batch scan limits.')}</td></tr>`;
+          body.innerHTML = `<tr><td colspan="8">${emptyState('No batches yet', 'Create a batch to set per-batch scan limits.')}</td></tr>`;
           return;
         }
 
-        body.innerHTML = data.batches.map(b => {
-          const hasOverride = b.scan_limit !== null;
-          const effective   = b.scan_limit ?? _globalScanLimit;
-          const limitBadge  = hasOverride
-            ? `<span style="font-weight:700;color:var(--red);font-size:14px;">${b.scan_limit}</span>
+        const rows = [];
+        for (const b of data.batches) {
+          const hasOverride   = b.scan_limit !== null;
+          const effective     = b.scan_limit ?? _globalScanLimit;
+          const overrideCount = b.serial_overrides || 0;
+          const isExpanded    = _limitsExpanded.has(b.batch_code);
+
+          const limitBadge = hasOverride
+            ? `<span style="font-weight:700;color:#6366F1;font-size:14px;">${b.scan_limit}</span>
                <span style="font-size:11px;color:var(--text-muted);margin-left:4px;">override</span>`
             : `<span style="color:var(--text-muted);font-size:13px;">—</span>
                <span style="font-size:11px;color:var(--text-muted);margin-left:4px;">global</span>`;
-          return `<tr id="limit-row-${esc(b.batch_code)}">
-            <td class="mono" style="font-weight:600;">${esc(b.batch_code)}</td>
-            <td style="color:var(--text-secondary);">${esc(b.product_name || '—')}</td>
+
+          const overrideBadge = overrideCount > 0
+            ? `<span style="display:inline-flex;align-items:center;gap:4px;background:rgba(99,102,241,0.1);color:#6366F1;font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;cursor:pointer;" onclick="toggleLimitExpand('${esc(b.batch_code)}')">
+                ${overrideCount} serial${overrideCount === 1 ? '' : 's'}
+              </span>`
+            : `<span style="color:var(--text-muted);font-size:12px;">none</span>`;
+
+          rows.push(`<tr id="lrow-${esc(b.batch_code)}">
+            <td style="width:32px;padding:0 4px 0 12px;">
+              <button onclick="toggleLimitExpand('${esc(b.batch_code)}')"
+                style="background:none;border:none;cursor:pointer;padding:4px;color:var(--text-muted);font-size:14px;line-height:1;transition:transform .15s;"
+                id="lrow-chevron-${esc(b.batch_code)}">${isExpanded ? '▾' : '▸'}</button>
+            </td>
+            <td class="mono" style="font-weight:700;">${esc(b.batch_code)}</td>
+            <td style="color:var(--text-secondary);max-width:160px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(b.product_name || '—')}</td>
             <td>${fmt(b.total)}</td>
             <td>${limitBadge}</td>
+            <td>${overrideBadge}</td>
             <td style="font-weight:700;font-size:15px;color:var(--text-primary);">${effective}</td>
             <td>
               <div style="display:flex;align-items:center;gap:6px;">
@@ -1994,15 +2108,124 @@
                   id="limit-input-${esc(b.batch_code)}"
                   placeholder="${effective}"
                   value="${hasOverride ? b.scan_limit : ''}"
-                  style="width:68px;height:30px;padding:0 8px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;font-size:13px;font-weight:600;text-align:center;outline:none;" />
+                  style="width:60px;height:28px;padding:0 6px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;font-size:13px;font-weight:600;text-align:center;outline:none;" />
                 <button class="btn btn-primary btn-sm" onclick="saveBatchLimit('${esc(b.batch_code)}')">Set</button>
                 ${hasOverride ? `<button class="btn btn-ghost btn-sm" onclick="resetBatchLimit('${esc(b.batch_code)}')">Reset</button>` : ''}
               </div>
             </td>
-          </tr>`;
-        }).join('');
+          </tr>`);
+
+          // expanded serial-limits sub-panel
+          rows.push(`<tr id="lexpand-${esc(b.batch_code)}" style="${isExpanded ? '' : 'display:none;'}">
+            <td colspan="8" style="padding:0;border-top:none;">
+              <div style="margin:0 12px 12px 44px;background:var(--bg-alt,#F8F9FC);border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;">
+                <div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+                  <span style="font-size:12px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.06em;">Serial Range Overrides</span>
+                  <div style="display:flex;align-items:center;gap:6px;">
+                    <span style="font-size:12px;color:var(--text-muted);">From</span>
+                    <input type="number" min="1" id="lnew-from-${esc(b.batch_code)}" placeholder="1"
+                      style="width:72px;height:28px;padding:0 6px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;font-size:13px;text-align:center;outline:none;" />
+                    <span style="font-size:12px;color:var(--text-muted);">To</span>
+                    <input type="number" min="1" id="lnew-to-${esc(b.batch_code)}" placeholder="${fmt(b.total)}"
+                      style="width:72px;height:28px;padding:0 6px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;font-size:13px;text-align:center;outline:none;" />
+                    <span style="font-size:12px;color:var(--text-muted);">Limit</span>
+                    <input type="number" min="1" max="999" id="lnew-limit-${esc(b.batch_code)}" placeholder="${effective}"
+                      style="width:60px;height:28px;padding:0 6px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;font-size:13px;text-align:center;outline:none;" />
+                    <button class="btn btn-primary btn-sm" onclick="addSerialLimit('${esc(b.batch_code)}')">Apply</button>
+                  </div>
+                </div>
+                <div id="lserial-rows-${esc(b.batch_code)}" style="padding:8px 0;">
+                  <div style="padding:10px 16px;font-size:12px;color:var(--text-muted);">Loading…</div>
+                </div>
+              </div>
+            </td>
+          </tr>`);
+
+          if (isExpanded) {
+            // will populate after render
+            setTimeout(() => renderSerialLimitGroups(b.batch_code, effective), 0);
+          }
+        }
+
+        body.innerHTML = rows.join('');
       } catch (err) {
-        body.innerHTML = `<tr><td colspan="6" style="padding:24px;text-align:center;color:var(--text-muted);font-size:13px;">Failed to load config.</td></tr>`;
+        body.innerHTML = `<tr><td colspan="8" style="padding:24px;text-align:center;color:var(--text-muted);font-size:13px;">Failed to load config.</td></tr>`;
+      }
+    }
+
+    function toggleLimitExpand(batchCode) {
+      const row  = document.getElementById(`lexpand-${batchCode}`);
+      const chev = document.getElementById(`lrow-chevron-${batchCode}`);
+      if (!row) return;
+      const isOpen = row.style.display !== 'none';
+      if (isOpen) {
+        row.style.display = 'none';
+        if (chev) chev.textContent = '▸';
+        _limitsExpanded.delete(batchCode);
+      } else {
+        row.style.display = '';
+        if (chev) chev.textContent = '▾';
+        _limitsExpanded.add(batchCode);
+        renderSerialLimitGroups(batchCode);
+      }
+    }
+
+    async function renderSerialLimitGroups(batchCode, fallbackEffective) {
+      const container = document.getElementById(`lserial-rows-${batchCode}`);
+      if (!container) return;
+      try {
+        const groups = await api(`/admin/batches/${encodeURIComponent(batchCode)}/serial-limits`);
+        if (!groups || !groups.length) {
+          container.innerHTML = `<div style="padding:10px 16px;font-size:12px;color:var(--text-muted);">No serial-range overrides set. Use the form above to apply a limit to a range of serial numbers.</div>`;
+          return;
+        }
+        container.innerHTML = groups.map(g => `
+          <div style="display:flex;align-items:center;gap:10px;padding:7px 16px;border-bottom:1px solid var(--border);font-size:13px;">
+            <span style="color:var(--text-muted);font-size:11px;min-width:100px;">Serials ${g.fromSeq} – ${g.toSeq}</span>
+            <span style="font-size:11px;color:var(--text-muted);">${g.count} unit${g.count === 1 ? '' : 's'}</span>
+            <span style="font-weight:700;color:#6366F1;margin-left:auto;">Limit: ${g.limit}</span>
+            <button class="btn btn-ghost btn-sm" style="font-size:11px;color:var(--red);"
+              onclick="clearSerialLimitRange('${esc(batchCode)}', ${g.fromSeq}, ${g.toSeq})">Clear</button>
+          </div>`).join('');
+      } catch {
+        container.innerHTML = `<div style="padding:10px 16px;font-size:12px;color:var(--text-muted);">Failed to load serial overrides.</div>`;
+      }
+    }
+
+    async function addSerialLimit(batchCode) {
+      const from  = parseInt(document.getElementById(`lnew-from-${batchCode}`).value, 10);
+      const to    = parseInt(document.getElementById(`lnew-to-${batchCode}`).value, 10);
+      const limit = parseInt(document.getElementById(`lnew-limit-${batchCode}`).value, 10);
+      if (!from || !to || isNaN(limit)) { toast('Enter from seq, to seq, and limit', 'error'); return; }
+      if (from > to) { toast('From must be ≤ To', 'error'); return; }
+      if (limit < 1 || limit > 999) { toast('Limit must be 1–999', 'error'); return; }
+      try {
+        await api(`/admin/batches/${encodeURIComponent(batchCode)}/serials/scan-limit`, {
+          method: 'POST',
+          body: { from_seq: from, to_seq: to, limit },
+        });
+        toast(`Limit ${limit} applied to serials ${from}–${to}`, 'success');
+        document.getElementById(`lnew-from-${batchCode}`).value = '';
+        document.getElementById(`lnew-to-${batchCode}`).value = '';
+        document.getElementById(`lnew-limit-${batchCode}`).value = '';
+        renderSerialLimitGroups(batchCode);
+        loadedSections.delete('limits');
+      } catch (err) {
+        toast('Failed: ' + err.message, 'error');
+      }
+    }
+
+    async function clearSerialLimitRange(batchCode, fromSeq, toSeq) {
+      try {
+        await api(`/admin/batches/${encodeURIComponent(batchCode)}/serials/scan-limit`, {
+          method: 'DELETE',
+          body: { from_seq: fromSeq, to_seq: toSeq },
+        });
+        toast(`Cleared serial limit for ${fromSeq}–${toSeq}`, 'success');
+        renderSerialLimitGroups(batchCode);
+        loadedSections.delete('limits');
+      } catch (err) {
+        toast('Failed: ' + err.message, 'error');
       }
     }
 

@@ -71,6 +71,70 @@ module.exports = async function serialRoutes(fastify) {
     return { success: true };
   });
 
+  // GET /admin/batches/:code/serial-limits — grouped serial limit overrides
+  fastify.get('/batches/:code/serial-limits', {
+    preHandler: [adminRateLimit, adminAuth],
+  }, async (request, reply) => {
+    const { code } = request.params;
+    try {
+      return await db.getSerialLimitGroups(code);
+    } catch (err) {
+      request.log.error({ err }, 'getSerialLimitGroups failed');
+      return reply.code(500).send({ error: 'Database error', code: 'DB_ERROR' });
+    }
+  });
+
+  // POST /admin/batches/:code/serials/scan-limit — apply scan limit to a seq range
+  fastify.post('/batches/:code/serials/scan-limit', {
+    preHandler: [adminRateLimit, adminAuth],
+  }, async (request, reply) => {
+    const { code }                     = request.params;
+    const { from_seq, to_seq, limit }  = request.body || {};
+
+    if (!from_seq || !to_seq || limit === undefined) {
+      return reply.code(400).send({ error: 'from_seq, to_seq and limit are required', code: 'MISSING_PARAM' });
+    }
+    if (Number(from_seq) > Number(to_seq)) {
+      return reply.code(400).send({ error: 'from_seq must be ≤ to_seq', code: 'INVALID_RANGE' });
+    }
+    const num = parseInt(limit, 10);
+    if (isNaN(num) || num < 1 || num > 999) {
+      return reply.code(400).send({ error: 'limit must be 1–999', code: 'INVALID_VALUE' });
+    }
+
+    try {
+      await db.setScanLimitForRange(code, Number(from_seq), Number(to_seq), num);
+    } catch (err) {
+      request.log.error({ err }, 'setScanLimitForRange failed');
+      return reply.code(500).send({ error: 'Database error', code: 'DB_ERROR' });
+    }
+
+    db.logAuditAction('SET_SERIAL_SCAN_LIMIT', 'batch', code, { from_seq, to_seq, limit: num }).catch(() => {});
+    return { success: true };
+  });
+
+  // DELETE /admin/batches/:code/serials/scan-limit — reset limit for a seq range
+  fastify.delete('/batches/:code/serials/scan-limit', {
+    preHandler: [adminRateLimit, adminAuth],
+  }, async (request, reply) => {
+    const { code }             = request.params;
+    const { from_seq, to_seq } = request.body || {};
+
+    if (!from_seq || !to_seq) {
+      return reply.code(400).send({ error: 'from_seq and to_seq are required', code: 'MISSING_PARAM' });
+    }
+
+    try {
+      await db.clearScanLimitForRange(code, Number(from_seq), Number(to_seq));
+    } catch (err) {
+      request.log.error({ err }, 'clearScanLimitForRange failed');
+      return reply.code(500).send({ error: 'Database error', code: 'DB_ERROR' });
+    }
+
+    db.logAuditAction('CLEAR_SERIAL_SCAN_LIMIT', 'batch', code, { from_seq, to_seq }).catch(() => {});
+    return { success: true };
+  });
+
   // DELETE /admin/batches/:code/serials/remark — clear remark for a seq range
   fastify.delete('/batches/:code/serials/remark', {
     preHandler: [adminRateLimit, adminAuth],
