@@ -305,7 +305,27 @@
       border-radius: var(--radius-md);
       overflow: hidden;
       box-shadow: var(--shadow-soft);
+      position: relative;
     }
+
+    /* Map scan-info panel */
+    #map-scan-panel {
+      position: absolute;
+      top: 56px;
+      right: 10px;
+      z-index: 1000;
+      width: 300px;
+      max-height: 340px;
+      background: var(--bg-card, #fff);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.22);
+      display: none;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    #map-panel-body::-webkit-scrollbar { width: 4px; }
+    #map-panel-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 
     .card-header {
       display: flex;
@@ -821,6 +841,14 @@
               </select>
             </div>
             <div id="scan-map"></div>
+            <!-- Scan info panel — appears on cluster/marker click -->
+            <div id="map-scan-panel">
+              <div style="padding:10px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
+                <span id="map-panel-title" style="font-size:13px;font-weight:700;color:var(--text-primary);"></span>
+                <button onclick="closeMapPanel()" style="width:24px;height:24px;border:none;background:none;cursor:pointer;color:var(--text-muted);font-size:16px;line-height:1;border-radius:4px;display:flex;align-items:center;justify-content:center;">×</button>
+              </div>
+              <div id="map-panel-body" style="overflow-y:auto;flex:1;"></div>
+            </div>
             <div class="map-legend">
               <div class="legend-item"><div class="legend-dot" style="background:#22C55E"></div>Verified</div>
               <div class="legend-item"><div class="legend-dot" style="background:#F59E0B"></div>Warning</div>
@@ -1649,9 +1677,9 @@
 
       clusterLayer = L.markerClusterGroup({
         maxClusterRadius: 50,
-        spiderfyOnMaxZoom: true,
+        spiderfyOnMaxZoom: false,
         showCoverageOnHover: false,
-        zoomToBoundsOnClick: true,
+        zoomToBoundsOnClick: false,
         iconCreateFunction(cluster) {
           const count = cluster.getChildCount();
           return L.divIcon({
@@ -1661,6 +1689,12 @@
             iconAnchor: [18, 18],
           });
         },
+      });
+
+      clusterLayer.on('clusterclick', function(e) {
+        const scans = e.layer.getAllChildMarkers().map(m => m._scanData).filter(Boolean);
+        showMapPanel(scans);
+        L.DomEvent.stopPropagation(e);
       });
 
       const batchSel = document.getElementById('map-filter-batch');
@@ -1682,30 +1716,20 @@
       // addLayers() bulk-adds to the cluster group in one pass (much faster than one-by-one)
       const markers = points.map(d => {
         const color = colors[d.result] || '#9CA3AF';
-        const loc  = [d.city, d.country].filter(Boolean).join(', ') || 'Unknown location';
-        const name = esc(d.product_name || 'Unknown product');
-        const ser  = d.serial ? d.serial.slice(0, 14) + '…' : '—';
-        const bat  = esc(d.batch_code || '—');
-        const time = new Date(d.scanned_at).toLocaleString('en-IN', { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
-        const dot  = `<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${color};margin-right:5px;vertical-align:middle;"></span>`;
-        return L.circleMarker([d.lat, d.lng], {
+        const m = L.circleMarker([d.lat, d.lng], {
           radius: 6,
           fillColor: color,
           color: '#fff',
           weight: 1.5,
           opacity: 1,
           fillOpacity: 0.85,
-        }).bindPopup(
-          `<div style="font-family:Manrope,sans-serif;min-width:190px;line-height:1.5;">
-            <div style="font-weight:700;font-size:13px;color:#111;margin-bottom:3px;">${name}</div>
-            <div style="font-size:10px;color:#aaa;font-family:monospace;margin-bottom:8px;">${ser}</div>
-            <div style="margin-bottom:6px;">${dot}<span style="font-size:12px;font-weight:600;color:#333;text-transform:capitalize;">${d.result}</span></div>
-            <div style="font-size:11px;color:#555;margin-bottom:2px;">📦 Batch: ${bat}</div>
-            <div style="font-size:11px;color:#555;margin-bottom:2px;">📍 ${esc(loc)}</div>
-            <div style="font-size:11px;color:#999;">${time}</div>
-          </div>`,
-          { maxWidth: 230 }
-        );
+        });
+        m._scanData = d;
+        m.on('click', function(e) {
+          showMapPanel([this._scanData]);
+          L.DomEvent.stopPropagation(e);
+        });
+        return m;
       });
       clusterLayer.addLayers(markers);
 
@@ -1715,6 +1739,39 @@
         const bounds = L.latLngBounds(points.map(d => [d.lat, d.lng]));
         mapInstance.fitBounds(bounds, { padding: [40, 40], maxZoom: 8 });
       }
+    }
+
+    function showMapPanel(scans) {
+      const colors = { verified: '#22C55E', warning: '#F59E0B', fake: '#EF4444', inactive: '#9CA3AF' };
+      const panel  = document.getElementById('map-scan-panel');
+      const title  = document.getElementById('map-panel-title');
+      const body   = document.getElementById('map-panel-body');
+
+      title.textContent = scans.length === 1 ? '1 scan at this location' : `${scans.length} scans at this location`;
+
+      body.innerHTML = scans.map(d => {
+        const color = colors[d.result] || '#9CA3AF';
+        const loc   = [d.city, d.country].filter(Boolean).join(', ') || 'Unknown location';
+        const time  = d.scanned_at ? new Date(d.scanned_at).toLocaleString('en-IN', { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' }) : '—';
+        const ser   = d.serial ? (d.serial.length > 22 ? d.serial.slice(0, 20) + '…' : d.serial) : '—';
+        return `<div style="padding:10px 14px;border-bottom:1px solid var(--border);display:flex;gap:10px;align-items:flex-start;">
+          <span style="width:8px;height:8px;border-radius:50%;background:${color};flex-shrink:0;margin-top:4px;display:block;"></span>
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:12px;font-weight:700;color:var(--text-primary);margin-bottom:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(d.product_name || 'Unknown product')}</div>
+            <div style="font-family:monospace;font-size:10px;color:var(--text-muted);margin-bottom:4px;">${esc(ser)}</div>
+            <div style="font-size:11px;color:var(--text-secondary);margin-bottom:1px;">📦 ${esc(d.batch_code || '—')}</div>
+            <div style="font-size:11px;color:var(--text-secondary);margin-bottom:1px;">📍 ${esc(loc)}</div>
+            <div style="font-size:11px;color:var(--text-muted);">🕐 ${time}</div>
+          </div>
+          <span style="font-size:10px;font-weight:700;text-transform:uppercase;color:${color};flex-shrink:0;padding:2px 6px;border-radius:4px;background:${color}18;">${esc(d.result)}</span>
+        </div>`;
+      }).join('');
+
+      panel.style.display = 'flex';
+    }
+
+    function closeMapPanel() {
+      document.getElementById('map-scan-panel').style.display = 'none';
     }
 
     function selectGeoCountry(country) {
