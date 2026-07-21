@@ -1457,10 +1457,11 @@
       }
     }
 
-    async function loadAlertFeed() {
+    async function loadAlertFeed(batchCode) {
       const body = document.getElementById('alert-feed-body');
       try {
-        const alerts = await api('/admin/alerts?resolved=false&limit=20');
+        const qs = batchCode ? `?resolved=false&limit=20&batch=${encodeURIComponent(batchCode)}` : '?resolved=false&limit=20';
+        const alerts = await api('/admin/alerts' + qs);
         if (!alerts.length) {
           body.innerHTML = emptyState('No active alerts', 'All clear — no fraud events detected.');
           return;
@@ -1481,10 +1482,11 @@
       }
     }
 
-    async function loadRecentScans() {
+    async function loadRecentScans(batchCode) {
       const body = document.getElementById('recent-scans-body');
       try {
-        const scans = await api('/admin/scans?limit=15');
+        const qs = batchCode ? `?limit=15&batch=${encodeURIComponent(batchCode)}` : '?limit=15';
+        const scans = await api('/admin/scans' + qs);
         if (!scans.length) {
           body.innerHTML = `<tr><td colspan="5">${emptyState('No scans yet', 'Scans will appear here once QR codes are distributed.')}</td></tr>`;
           return;
@@ -1705,7 +1707,6 @@
 
       try {
         const { stats } = await api(`/admin/batches/${encodeURIComponent(code)}`);
-        // Save global stats first time
         if (!_globalStats) {
           _globalStats = {
             total:    document.getElementById('stat-total').textContent,
@@ -1714,17 +1715,30 @@
             fake:     document.getElementById('stat-fake').textContent,
             alerts:   document.getElementById('stat-alerts').textContent,
             fraud:    document.getElementById('stat-fraud-rate').textContent,
+            fraudSub: document.getElementById('stat-fraud-sub').textContent,
           };
         }
-        document.getElementById('stat-total').textContent    = (stats.totalScans || 0).toLocaleString();
-        document.getElementById('stat-verified').textContent = (stats.total || 0).toLocaleString();
-        document.getElementById('stat-warning').textContent  = (stats.remarkCount || 0).toLocaleString();
-        document.getElementById('stat-fake').textContent     = '—';
-        document.getElementById('stat-alerts').textContent   = '—';
-        document.getElementById('stat-fraud-rate').textContent = '—';
-        // Update labels
-        document.querySelector('#stat-total + .stat-sub')    && (document.querySelectorAll('.stat-card .stat-sub')[0].textContent = 'This batch');
+
+        const fraudCount = (stats.warning || 0) + (stats.fake || 0);
+        const fraudRate  = stats.totalScans > 0 ? (fraudCount / stats.totalScans * 100) : 0;
+
+        document.getElementById('stat-total').textContent    = fmt(stats.totalScans || 0);
+        document.getElementById('stat-verified').textContent = fmt(stats.verified   || 0);
+        document.getElementById('stat-warning').textContent  = fmt(stats.warning    || 0);
+        document.getElementById('stat-fake').textContent     = fmt(stats.fake       || 0);
+        document.getElementById('stat-alerts').textContent   = fmt(stats.activeAlerts || 0);
+
+        const fraudEl  = document.getElementById('stat-fraud-rate');
+        const fraudSub = document.getElementById('stat-fraud-sub');
+        fraudEl.textContent = fraudRate.toFixed(1) + '%';
+        fraudEl.className   = 'stat-value ' + (fraudRate < 5 ? 'green' : fraudRate < 15 ? 'amber' : 'red');
+        if (fraudSub) fraudSub.textContent = `${fmt(fraudCount)} of ${fmt(stats.totalScans || 0)} scans`;
+
+        document.querySelectorAll('.stat-card .stat-sub')[0].textContent = 'This batch';
         document.getElementById('dashboard-title').textContent = code;
+
+        loadAlertFeed(code);
+        loadRecentScans(code);
       } catch (_) {}
     }
 
@@ -1746,8 +1760,12 @@
         document.getElementById('stat-fake').textContent     = _globalStats.fake;
         document.getElementById('stat-alerts').textContent   = _globalStats.alerts;
         document.getElementById('stat-fraud-rate').textContent = _globalStats.fraud;
+        const fraudSub = document.getElementById('stat-fraud-sub');
+        if (fraudSub && _globalStats.fraudSub) fraudSub.textContent = _globalStats.fraudSub;
         _globalStats = null;
       }
+      loadAlertFeed();
+      loadRecentScans();
     }
 
     function onDashBatchChange() {

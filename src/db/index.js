@@ -317,13 +317,21 @@ async function getBatchDetail(batchCode) {
   if (!batch) return null;
 
   const serials = products.map(p => p.serial);
-  let totalScans = 0;
+  let totalScans = 0, verified = 0, warning = 0, fake = 0, activeAlerts = 0;
+
   if (serials.length) {
-    const { count } = await db
-      .from('scan_logs')
-      .select('id', { count: 'exact', head: true })
-      .in('serial', serials);
-    totalScans = count || 0;
+    const [totalRes, verifiedRes, warningRes, fakeRes, alertRes] = await Promise.all([
+      db.from('scan_logs').select('id', { count: 'exact', head: true }).in('serial', serials),
+      db.from('scan_logs').select('id', { count: 'exact', head: true }).in('serial', serials).eq('result', 'verified'),
+      db.from('scan_logs').select('id', { count: 'exact', head: true }).in('serial', serials).eq('result', 'warning'),
+      db.from('scan_logs').select('id', { count: 'exact', head: true }).in('serial', serials).eq('result', 'fake'),
+      db.from('alerts').select('id', { count: 'exact', head: true }).eq('batch_code', batchCode).eq('resolved', false),
+    ]);
+    totalScans   = totalRes.count   || 0;
+    verified     = verifiedRes.count || 0;
+    warning      = warningRes.count  || 0;
+    fake         = fakeRes.count     || 0;
+    activeAlerts = alertRes.count    || 0;
   }
 
   const remarkCount = new Set(products.map(p => p.remark).filter(Boolean)).size;
@@ -331,11 +339,15 @@ async function getBatchDetail(batchCode) {
   return {
     batch,
     stats: {
-      total:       products.length,
+      total:        products.length,
       totalScans,
+      verified,
+      warning,
+      fake,
+      activeAlerts,
       remarkCount,
-      maxSeq:      products.length ? Math.max(...products.map(p => p.seq || 0)) : 0,
-      scan_limit:  batch.scan_limit ?? null,
+      maxSeq:       products.length ? Math.max(...products.map(p => p.seq || 0)) : 0,
+      scan_limit:   batch.scan_limit ?? null,
     },
   };
 }
