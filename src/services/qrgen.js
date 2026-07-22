@@ -139,37 +139,37 @@ function drawSticker(doc, sx, sy, product, qrBuf) {
     .lineWidth(0.6).strokeColor(DIV_C).stroke()
     .restore();
 
-  // ── Logo ──────────────────────────────────────────────────────────────────
-  // Logo is landscape-ish (approx 1:0.85 ratio), fit within a 70×60 box
-  const LOGO_W = 70;
-  const LOGO_H = 56;
-  const logoX  = RX;
-  const logoY  = sy + 10;
-  doc.image(LOGO_PATH, logoX, logoY, { width: LOGO_W, height: LOGO_H, fit: [LOGO_W, LOGO_H] });
+  // ── Logo — centered, full-width proportional ──────────────────────────────
+  const LOGO_W = 120;
+  const logoX  = RX + (RW - LOGO_W) / 2;
+  doc.image(LOGO_PATH, logoX, sy + 10, { fit: [LOGO_W, 52] });
 
   // Divider 1
-  doc.save().moveTo(RX, sy + 74).lineTo(sx + STK_W - 10, sy + 74)
-    .lineWidth(0.5).strokeColor('#EEEEEE').stroke().restore();
+  doc.save().moveTo(RX, sy + 68).lineTo(sx + STK_W - 10, sy + 68)
+    .lineWidth(0.5).strokeColor('#E5E5E5').stroke().restore();
 
-  // ── Scan to Verify ────────────────────────────────────────────────────────
-  doc.font('Helvetica-Bold').fontSize(8.5).fillColor(RED)
-    .text('> Scan to Verify Authenticity', RX, sy + 81, { width: RW });
+  // ── Scan CTA — prominent heading ──────────────────────────────────────────
+  doc.font('Helvetica-Bold').fontSize(14).fillColor(RED)
+    .text('SCAN TO VERIFY', RX, sy + 76, { width: RW, align: 'center' });
 
-  doc.font('Helvetica').fontSize(7).fillColor(GRAY)
+  doc.font('Helvetica').fontSize(8).fillColor(LTGRAY)
+    .text('A U T H E N T I C I T Y', RX, sy + 95, { width: RW, align: 'center' });
+
+  doc.font('Helvetica').fontSize(7.5).fillColor(GRAY)
     .text(
-      'Point your camera at the QR code to confirm\nthis product is 100% genuine.',
-      RX, sy + 95, { width: RW, lineGap: 1.5 }
+      'Point your camera at the QR code\nto confirm this product is 100% genuine.',
+      RX, sy + 112, { width: RW, align: 'center', lineGap: 2.5 }
     );
 
   // Divider 2
-  doc.save().moveTo(RX, sy + 128).lineTo(sx + STK_W - 10, sy + 128)
+  doc.save().moveTo(RX, sy + 148).lineTo(sx + STK_W - 10, sy + 148)
     .lineWidth(0.5).strokeColor('#EEEEEE').stroke().restore();
 
   // ── Authenticity note ─────────────────────────────────────────────────────
-  doc.font('Helvetica').fontSize(6.5).fillColor(LTGRAY)
+  doc.font('Helvetica').fontSize(6).fillColor(LTGRAY)
     .text(
-      'This product carries a tamper-evident QR seal.\nIf you suspect a counterfeit, contact First Molecule.',
-      RX, sy + 136, { width: RW, lineGap: 1.5 }
+      'Tamper-evident QR seal by First Molecule Quality Control',
+      RX, sy + 156, { width: RW, align: 'center' }
     );
 
   // ── Cut marks ─────────────────────────────────────────────────────────────
