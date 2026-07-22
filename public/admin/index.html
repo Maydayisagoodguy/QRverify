@@ -1354,6 +1354,25 @@
     }
 
     function refreshData() {
+      // Reset all filters to default before reloading
+      clearBatchContext();
+      closeMapPanel();
+      currentMapFilter = 'all';
+      selectedCountry  = null;
+      _globalStats     = null;
+
+      // Reset map status filter buttons (All → active)
+      document.querySelectorAll('.map-filter-btn[data-filter]').forEach(b =>
+        b.classList.toggle('active', b.dataset.filter === 'all')
+      );
+
+      // Reset geo country highlights
+      document.querySelectorAll('#geo-body tr').forEach(tr => tr.style.background = '');
+
+      // Reset map count label
+      const label = document.getElementById('map-count-label');
+      if (label) label.textContent = 'Last 500 scans';
+
       loadAnalytics();
       loadedSections.clear();
       if (activeSection === 'dashboard') loadDashboard();
