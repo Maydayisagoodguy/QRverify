@@ -390,15 +390,17 @@
         <div class="form-row">
           <div class="form-group">
             <label class="form-label">From Seq</label>
-            <input type="number" class="form-input w-sm" id="from-seq" min="1" placeholder="1"/>
+            <input type="number" class="form-input w-sm" id="from-seq" min="1" oninput="updateSeqHints()"/>
+            <span id="from-seq-hint" style="display:block;font-size:10px;font-family:monospace;color:var(--text-muted);margin-top:3px;min-height:14px;letter-spacing:.03em;"></span>
           </div>
           <div class="form-group">
             <label class="form-label">To Seq</label>
-            <input type="number" class="form-input w-sm" id="to-seq" min="1" placeholder="10"/>
+            <input type="number" class="form-input w-sm" id="to-seq" min="1" oninput="updateSeqHints()"/>
+            <span id="to-seq-hint" style="display:block;font-size:10px;font-family:monospace;color:var(--text-muted);margin-top:3px;min-height:14px;letter-spacing:.03em;"></span>
           </div>
           <div class="form-group">
             <label class="form-label">Remark</label>
-            <input type="text" class="form-input w-lg" id="remark-text" placeholder="e.g. Dealer A — Kerala"/>
+            <input type="text" class="form-input w-lg" id="remark-text"/>
           </div>
           <button class="btn btn-primary" onclick="applyRemark()">Apply</button>
           <button class="btn btn-danger-soft" onclick="clearRemark()">Clear Range</button>
@@ -416,15 +418,17 @@
         <div class="form-row">
           <div class="form-group">
             <label class="form-label">From Seq</label>
-            <input type="number" class="form-input w-sm" id="sl-from-seq" min="1" placeholder="1"/>
+            <input type="number" class="form-input w-sm" id="sl-from-seq" min="1" oninput="updateSeqHints()"/>
+            <span id="sl-from-seq-hint" style="display:block;font-size:10px;font-family:monospace;color:var(--text-muted);margin-top:3px;min-height:14px;letter-spacing:.03em;"></span>
           </div>
           <div class="form-group">
             <label class="form-label">To Seq</label>
-            <input type="number" class="form-input w-sm" id="sl-to-seq" min="1" placeholder="100"/>
+            <input type="number" class="form-input w-sm" id="sl-to-seq" min="1" oninput="updateSeqHints()"/>
+            <span id="sl-to-seq-hint" style="display:block;font-size:10px;font-family:monospace;color:var(--text-muted);margin-top:3px;min-height:14px;letter-spacing:.03em;"></span>
           </div>
           <div class="form-group">
             <label class="form-label">Scan Limit</label>
-            <input type="number" class="form-input w-sm" id="sl-limit" min="1" max="999" placeholder="e.g. 3"/>
+            <input type="number" class="form-input w-sm" id="sl-limit" min="1" max="999"/>
           </div>
           <button class="btn btn-primary" onclick="applySerialLimit()">Apply</button>
           <button class="btn btn-danger-soft" onclick="clearSerialLimit()">Clear Range</button>
@@ -482,6 +486,28 @@
   const batchCode = decodeURIComponent(window.location.pathname.split('/').pop());
   let _batchScanLimit  = null;
   let _globalScanLimit = 1;
+  let _serialPrefix    = '';   // first 5 chars of any serial in this batch (prefix + batch tag)
+
+  function seqToSerial(seq) {
+    const n = parseInt(seq, 10);
+    if (!_serialPrefix || !n || n < 1) return '';
+    return _serialPrefix + (10000 + n);
+  }
+
+  function updateSeqHints() {
+    const pairs = [
+      ['from-seq', 'from-seq-hint'],
+      ['to-seq',   'to-seq-hint'],
+      ['sl-from-seq', 'sl-from-seq-hint'],
+      ['sl-to-seq',   'sl-to-seq-hint'],
+    ];
+    for (const [inputId, hintId] of pairs) {
+      const el   = document.getElementById(inputId);
+      const hint = document.getElementById(hintId);
+      if (!el || !hint) continue;
+      hint.textContent = el.value ? seqToSerial(el.value) : '';
+    }
+  }
 
   // ── Toast ──────────────────────────────────────────────────────────
   function toast(msg, type = '') {
@@ -586,6 +612,12 @@
             <div class="empty-state-sub">Generate QR codes for this batch to see them here.</div>
           </div></td></tr>`;
         return;
+      }
+
+      // Capture serial prefix (e.g. "FM071") from first row for live hints
+      if (!_serialPrefix && rows[0]?.serial && rows[0].serial.length >= 5) {
+        _serialPrefix = rows[0].serial.slice(0, 5);
+        updateSeqHints();
       }
 
       const effectiveLimit = _batchScanLimit ?? _globalScanLimit;
