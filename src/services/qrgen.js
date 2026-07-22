@@ -139,37 +139,38 @@ function drawSticker(doc, sx, sy, product, qrBuf) {
     .lineWidth(0.6).strokeColor(DIV_C).stroke()
     .restore();
 
-  // ── Logo — centered, full-width proportional ──────────────────────────────
-  const LOGO_W = 120;
-  const logoX  = RX + (RW - LOGO_W) / 2;
-  doc.image(LOGO_PATH, logoX, sy + 10, { fit: [LOGO_W, 52] });
+  // ── Logo — correctly centered (logo ratio 1.178, height-constrained) ───────
+  // fit:[80,68] renders at 80×68pt; center = RX + (RW-80)/2
+  const LOGO_RENDER_W = 80;
+  const logoX = RX + (RW - LOGO_RENDER_W) / 2;
+  doc.image(LOGO_PATH, logoX, sy + 6, { fit: [LOGO_RENDER_W, 68] });
 
   // Divider 1
-  doc.save().moveTo(RX, sy + 68).lineTo(sx + STK_W - 10, sy + 68)
+  doc.save().moveTo(RX, sy + 80).lineTo(sx + STK_W - 10, sy + 80)
     .lineWidth(0.5).strokeColor('#E5E5E5').stroke().restore();
 
   // ── Scan CTA — prominent heading ──────────────────────────────────────────
   doc.font('Helvetica-Bold').fontSize(14).fillColor(RED)
-    .text('SCAN TO VERIFY', RX, sy + 76, { width: RW, align: 'center' });
+    .text('SCAN TO VERIFY', RX, sy + 88, { width: RW, align: 'center' });
 
   doc.font('Helvetica').fontSize(8).fillColor(LTGRAY)
-    .text('A U T H E N T I C I T Y', RX, sy + 95, { width: RW, align: 'center' });
+    .text('A U T H E N T I C I T Y', RX, sy + 107, { width: RW, align: 'center' });
 
   doc.font('Helvetica').fontSize(7.5).fillColor(GRAY)
     .text(
       'Point your camera at the QR code\nto confirm this product is 100% genuine.',
-      RX, sy + 112, { width: RW, align: 'center', lineGap: 2.5 }
+      RX, sy + 122, { width: RW, align: 'center', lineGap: 2.5 }
     );
 
   // Divider 2
-  doc.save().moveTo(RX, sy + 148).lineTo(sx + STK_W - 10, sy + 148)
+  doc.save().moveTo(RX, sy + 156).lineTo(sx + STK_W - 10, sy + 156)
     .lineWidth(0.5).strokeColor('#EEEEEE').stroke().restore();
 
   // ── Authenticity note ─────────────────────────────────────────────────────
   doc.font('Helvetica').fontSize(6).fillColor(LTGRAY)
     .text(
       'Tamper-evident QR seal by First Molecule Quality Control',
-      RX, sy + 156, { width: RW, align: 'center' }
+      RX, sy + 163, { width: RW, align: 'center' }
     );
 
   // ── Cut marks ─────────────────────────────────────────────────────────────
