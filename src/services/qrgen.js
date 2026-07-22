@@ -99,14 +99,15 @@ const RED    = '#B81F24';
 const DARK   = '#111111';
 const GRAY   = '#666666';
 const LTGRAY = '#AAAAAA';
-const GREEN  = '#22C55E';
 const BGPNL  = '#F7F7F7';
 const DIV_C  = '#E0E0E0';
+
+const LOGO_PATH = require('path').join(__dirname, '../../public/assets/logo.png');
 
 function drawSticker(doc, sx, sy, product, qrBuf) {
   const DIV_X = sx + 172;
   const RX    = DIV_X + 12;
-  const RW    = STK_W - 172 - 12 - 10;  // right panel usable width
+  const RW    = STK_W - 172 - 12 - 10;
 
   // ── Outer border ──────────────────────────────────────────────────────────
   doc.save()
@@ -138,58 +139,40 @@ function drawSticker(doc, sx, sy, product, qrBuf) {
     .lineWidth(0.6).strokeColor(DIV_C).stroke()
     .restore();
 
-  // ── FM badge (red circle with white "FM") ─────────────────────────────────
-  const bCX = RX + 13;
-  const bCY = sy + 26;
-  doc.save().circle(bCX, bCY, 13).fillColor(RED).fill().restore();
-  doc.font('Helvetica-Bold').fontSize(8).fillColor('#FFFFFF')
-    .text('FM', bCX - 7.5, bCY - 5, { lineBreak: false });
-
-  // ── FIRST MOLECULE heading ────────────────────────────────────────────────
-  doc.font('Helvetica-Bold').fontSize(10.5).fillColor(DARK)
-    .text('FIRST MOLECULE', RX + 30, sy + 17, { width: RW - 30, lineBreak: false });
-
-  doc.font('Helvetica').fontSize(6.5).fillColor(LTGRAY)
-    .text('Premium Quality Products', RX + 30, sy + 31, { width: RW - 30, lineBreak: false });
+  // ── Logo ──────────────────────────────────────────────────────────────────
+  // Logo is landscape-ish (approx 1:0.85 ratio), fit within a 70×60 box
+  const LOGO_W = 70;
+  const LOGO_H = 56;
+  const logoX  = RX;
+  const logoY  = sy + 10;
+  doc.image(LOGO_PATH, logoX, logoY, { width: LOGO_W, height: LOGO_H, fit: [LOGO_W, LOGO_H] });
 
   // Divider 1
-  doc.save().moveTo(RX, sy + 44).lineTo(sx + STK_W - 10, sy + 44)
+  doc.save().moveTo(RX, sy + 74).lineTo(sx + STK_W - 10, sy + 74)
     .lineWidth(0.5).strokeColor('#EEEEEE').stroke().restore();
 
   // ── Scan to Verify ────────────────────────────────────────────────────────
   doc.font('Helvetica-Bold').fontSize(8.5).fillColor(RED)
-    .text('> Scan to Verify Authenticity', RX, sy + 51, { width: RW });
+    .text('> Scan to Verify Authenticity', RX, sy + 81, { width: RW });
 
   doc.font('Helvetica').fontSize(7).fillColor(GRAY)
     .text(
       'Point your camera at the QR code to confirm\nthis product is 100% genuine.',
-      RX, sy + 65, { width: RW, lineGap: 1 }
+      RX, sy + 95, { width: RW, lineGap: 1.5 }
     );
 
   // Divider 2
-  doc.save().moveTo(RX, sy + 100).lineTo(sx + STK_W - 10, sy + 100)
+  doc.save().moveTo(RX, sy + 128).lineTo(sx + STK_W - 10, sy + 128)
     .lineWidth(0.5).strokeColor('#EEEEEE').stroke().restore();
 
-  // ── Quality mark ──────────────────────────────────────────────────────────
-  doc.font('Helvetica-Bold').fontSize(7.5).fillColor(GREEN)
-    .text('GENUINE PRODUCT', RX, sy + 107, { lineBreak: false });
-
-  doc.font('Helvetica').fontSize(6.5).fillColor(GRAY)
+  // ── Authenticity note ─────────────────────────────────────────────────────
+  doc.font('Helvetica').fontSize(6.5).fillColor(LTGRAY)
     .text(
-      'Tamper-evident QR authentication by\nFirst Molecule Quality Control.',
-      RX, sy + 119, { width: RW, lineGap: 1 }
+      'This product carries a tamper-evident QR seal.\nIf you suspect a counterfeit, contact First Molecule.',
+      RX, sy + 136, { width: RW, lineGap: 1.5 }
     );
 
-  // Divider 3
-  doc.save().moveTo(RX, sy + 150).lineTo(sx + STK_W - 10, sy + 150)
-    .lineWidth(0.5).strokeColor('#EEEEEE').stroke().restore();
-
-  // ── Verify URL footer ─────────────────────────────────────────────────────
-  const verifyAt = config.verifyBaseUrl.replace(/^https?:\/\//, '');
-  doc.font('Courier').fontSize(6.5).fillColor(LTGRAY)
-    .text(`Verify at: ${verifyAt}`, RX, sy + 157, { width: RW });
-
-  // ── Cut marks at sticker corners ──────────────────────────────────────────
+  // ── Cut marks ─────────────────────────────────────────────────────────────
   const CM = 5;
   for (const [cx, cy] of [[sx, sy], [sx + STK_W, sy], [sx, sy + STK_H], [sx + STK_W, sy + STK_H]]) {
     doc.save()

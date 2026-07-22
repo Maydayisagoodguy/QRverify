@@ -526,47 +526,6 @@
       text-transform: uppercase;
     }
 
-    /* ── Report modal ─────────────────────────────────────── */
-    .modal-overlay {
-      display: none;
-      position: fixed;
-      inset: 0;
-      background: rgba(5,5,5,0.6);
-      backdrop-filter: blur(6px);
-      z-index: 100;
-      align-items: center;
-      justify-content: center;
-      padding: 24px;
-    }
-    .modal-overlay.open { display: flex; }
-
-    .modal {
-      background: var(--white);
-      border-radius: var(--radius);
-      padding: 36px;
-      width: 100%;
-      max-width: 420px;
-      box-shadow: var(--shadow-lg);
-      animation: slideUp 0.3s ease-out both;
-    }
-
-    .modal-title {
-      font-size: 18px;
-      font-weight: 700;
-      letter-spacing: -0.02em;
-      color: var(--black);
-      margin-bottom: 8px;
-    }
-
-    .modal p {
-      font-size: 14px;
-      color: var(--gray-600);
-      line-height: 1.6;
-      margin-bottom: 24px;
-    }
-
-    .modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
-
     /* ── Responsive ───────────────────────────────────────── */
     @media (max-width: 540px) {
       .topbar { padding: 0 20px; }
@@ -584,7 +543,7 @@
     }
 
     @media (prefers-reduced-motion: reduce) {
-      .card, .modal { animation: none; }
+      .card { animation: none; }
       .skeleton { animation: none; }
     }
   </style>
@@ -645,18 +604,6 @@
     <div class="footer-copy">© 2025 First Molecule. All rights reserved.</div>
     <div class="footer-powered">Verification powered by QR Verify</div>
   </footer>
-
-  <!-- Report modal -->
-  <div class="modal-overlay" id="report-modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
-    <div class="modal">
-      <div class="modal-title" id="modal-title">Report counterfeit product</div>
-      <p>This will flag the QR code for review by First Molecule. Thank you for helping protect consumers from counterfeit products.</p>
-      <div class="modal-actions">
-        <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
-        <button class="btn btn-danger" onclick="submitReport()">Submit report</button>
-      </div>
-    </div>
-  </div>
 
   <script>
     const ICONS = {
@@ -809,12 +756,6 @@
               <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#991B1B;margin-bottom:6px;">What to do</div>
               <div style="font-size:13px;color:#7f1d1d;line-height:1.7;">If you purchased this as a new product, contact your seller or First Molecule directly to verify its origin.</div>
             </div>
-            <div style="padding-top:4px;">
-              <button class="btn btn-danger" onclick="openModal()" style="width:100%;justify-content:center;">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-                Report this product
-              </button>
-            </div>
           </div>`;
         return;
       }
@@ -825,25 +766,12 @@
           <div style="font-size:14px;color:var(--gray-600);line-height:1.7;">
             This QR code is not registered in First Molecule's system. Do not use or consume this product.
           </div>
-          <button class="btn btn-danger" onclick="openModal()" style="width:100%;justify-content:center;">Report this product</button>
         </div>`;
     }
 
     function esc(str) {
       return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
     }
-
-    function openModal()  { document.getElementById('report-modal').classList.add('open'); }
-    function closeModal() { document.getElementById('report-modal').classList.remove('open'); }
-
-    async function submitReport() {
-      closeModal();
-      alert('Your report has been submitted to First Molecule. Thank you for helping protect consumers.');
-    }
-
-    document.getElementById('report-modal').addEventListener('click', e => {
-      if (e.target === e.currentTarget) closeModal();
-    });
 
     init();
   </script>
