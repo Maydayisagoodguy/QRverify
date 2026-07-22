@@ -389,14 +389,12 @@
       <div class="card-body">
         <div class="form-row">
           <div class="form-group">
-            <label class="form-label">From Seq</label>
+            <label class="form-label" id="from-seq-label">From Seq</label>
             <input type="number" class="form-input w-sm" id="from-seq" min="1" oninput="updateSeqHints()"/>
-            <span id="from-seq-hint" style="display:block;font-size:10px;font-family:monospace;color:var(--text-muted);margin-top:3px;min-height:14px;letter-spacing:.03em;"></span>
           </div>
           <div class="form-group">
-            <label class="form-label">To Seq</label>
+            <label class="form-label" id="to-seq-label">To Seq</label>
             <input type="number" class="form-input w-sm" id="to-seq" min="1" oninput="updateSeqHints()"/>
-            <span id="to-seq-hint" style="display:block;font-size:10px;font-family:monospace;color:var(--text-muted);margin-top:3px;min-height:14px;letter-spacing:.03em;"></span>
           </div>
           <div class="form-group">
             <label class="form-label">Remark</label>
@@ -417,14 +415,12 @@
       <div class="card-body">
         <div class="form-row">
           <div class="form-group">
-            <label class="form-label">From Seq</label>
+            <label class="form-label" id="sl-from-seq-label">From Seq</label>
             <input type="number" class="form-input w-sm" id="sl-from-seq" min="1" oninput="updateSeqHints()"/>
-            <span id="sl-from-seq-hint" style="display:block;font-size:10px;font-family:monospace;color:var(--text-muted);margin-top:3px;min-height:14px;letter-spacing:.03em;"></span>
           </div>
           <div class="form-group">
-            <label class="form-label">To Seq</label>
+            <label class="form-label" id="sl-to-seq-label">To Seq</label>
             <input type="number" class="form-input w-sm" id="sl-to-seq" min="1" oninput="updateSeqHints()"/>
-            <span id="sl-to-seq-hint" style="display:block;font-size:10px;font-family:monospace;color:var(--text-muted);margin-top:3px;min-height:14px;letter-spacing:.03em;"></span>
           </div>
           <div class="form-group">
             <label class="form-label">Scan Limit</label>
@@ -496,16 +492,17 @@
 
   function updateSeqHints() {
     const pairs = [
-      ['from-seq', 'from-seq-hint'],
-      ['to-seq',   'to-seq-hint'],
-      ['sl-from-seq', 'sl-from-seq-hint'],
-      ['sl-to-seq',   'sl-to-seq-hint'],
+      ['from-seq',    'from-seq-label',    'From Seq'],
+      ['to-seq',      'to-seq-label',      'To Seq'],
+      ['sl-from-seq', 'sl-from-seq-label', 'From Seq'],
+      ['sl-to-seq',   'sl-to-seq-label',   'To Seq'],
     ];
-    for (const [inputId, hintId] of pairs) {
-      const el   = document.getElementById(inputId);
-      const hint = document.getElementById(hintId);
-      if (!el || !hint) continue;
-      hint.textContent = el.value ? seqToSerial(el.value) : '';
+    for (const [inputId, labelId, base] of pairs) {
+      const el    = document.getElementById(inputId);
+      const label = document.getElementById(labelId);
+      if (!el || !label) continue;
+      const serial = el.value ? seqToSerial(el.value) : '';
+      label.textContent = serial ? `${base} — ${serial}` : base;
     }
   }
 
