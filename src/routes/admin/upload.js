@@ -79,8 +79,8 @@ module.exports = async function uploadRoutes(fastify) {
         batch_code:   code,
         product_name: meta.productName,
         count:        bp.length,
-        from_seq:     formatSeq(bp[0]?.seq || 0),
-        to_seq:       formatSeq(bp[bp.length - 1]?.seq || 0),
+        from_seq:     bp[0]?.seq || 0,
+        to_seq:       bp[bp.length - 1]?.seq || 0,
       });
     }
 

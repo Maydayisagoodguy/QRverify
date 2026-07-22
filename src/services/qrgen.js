@@ -8,10 +8,31 @@ const config      = require('../config');
 
 const REQUIRED_COLS = ['batch_code', 'quantity'];
 
-// Serial: {3-char prefix}{1000000 + seq} = always 10 chars, no leading zeros
-// e.g. seq=1 → FM01000001, seq=999 → FM01000999, seq=1000 → FM01001000
+// ── Serial permutation (LCG bijection) ────────────────────────────────────────
+//
+// Maps seq (1, 2, 3 …) → a unique, seemingly-random 7-digit number.
+// This is the industry-standard approach used by pharmaceutical and
+// electronics manufacturers: internally the admin tracks seq 1→N,
+// but the printed serial looks non-sequential to outsiders.
+//
+// Hull-Dobell full-period LCG over m = 9,000,000:
+//   f(x) = (LCG_A × x + LCG_C) mod LCG_M   + LCG_BASE
+//
+//   LCG_A  = 1,500,001  (a-1 divisible by 2,3,5 and by 4 → full period)
+//   LCG_C  = 1,234,567  (coprime to m: odd, digit-sum≠0 mod 3, ends ≠ 0/5)
+//   LCG_M  = 9,000,000  (range size: 0 … 8,999,999)
+//   LCG_BASE = 1,000,000 (ensures result is always 7 digits, starts with 1–9)
+//
+// Result: always 7 digits (1000000–9999999), supports up to 9M unique products,
+// no collisions within that range.
+
+const LCG_A    = 1500001;
+const LCG_C    = 1234567;
+const LCG_M    = 9000000;
+const LCG_BASE = 1000000;
+
 function formatSeq(seq) {
-  return String(1000000 + seq);
+  return String(LCG_BASE + ((seq * LCG_A + LCG_C) % LCG_M));
 }
 
 function buildSerial(_batchCode, seq) {
