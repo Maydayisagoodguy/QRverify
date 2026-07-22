@@ -16,79 +16,35 @@ const REQUIRED_COLS = ['batch_code', 'quantity'];
 //   BATCH_TAG = 2-digit (10–99) HMAC fingerprint of the batch code
 //               → same batch always gets same tag; visually groups all products
 //                 of one batch (e.g. all "FM071…" serials = BATCH-TEST-001)
-//   SEQ_CODE  = 5-digit (10000–99999) Feistel cipher permutation of seq
-//               → bijective: zero collisions up to 90,000 products per batch
-//               → nonlinear: no sequential digit pattern visible (unlike LCG)
-//               → batch-specific keys: seq 1 of batch A ≠ seq 1 of batch B
-//               → keyed by HMAC_SECRET: unpredictable without the secret
+//   SEQ_CODE  = 5-digit sequential number: 10001 + (seq - 1) = 10001–99999
+//               → seq 1 = 10001, seq 2 = 10002, … seq 1000 = 11000
+//               → no leading zeros; person pasting stickers sees clear order
+//               → admin selects "seq 1 to 1000" from DB for any batch
 //
-// Admin sees: seq 1–1000 in DB for any batch.  Serial is the printed code.
-// Outsider sees: 10 seemingly-random digits per sticker, no guessable pattern.
-// DB unique constraint catches any theoretical collision on insert.
+// Examples for BATCH-TEST-001 (tag = 18):
+//   seq 1    → FM0181000 1  → FM01810001
+//   seq 10   → FM01810010
+//   seq 1000 → FM01811000
 
-// ── Batch tag: 2 digits (10–99) ───────────────────────────────────────────────
+// 2-digit batch tag (10–99) — deterministic from batch code + HMAC secret
 function batchTag(batchCode) {
   const h = crypto.createHmac('sha256', config.hmacSecret)
     .update(`bt:${batchCode}`).digest();
   return String(10 + (h.readUInt32BE(0) % 90));
 }
 
-// ── Feistel cipher over domain [0, 89999] (300 × 300 balanced split) ──────────
-//
-// A Feistel network is provably bijective regardless of the round function,
-// so every (batchCode, seq) pair maps to a unique 5-digit output.
-// Round keys are derived from HMAC_SECRET so the permutation is secret-keyed.
-
-const _keyCache = new Map();
-
-function _feistelKeys(batchCode) {
-  if (_keyCache.has(batchCode)) return _keyCache.get(batchCode);
-  const h = crypto.createHmac('sha256', config.hmacSecret)
-    .update(`fk:${batchCode}`).digest();
-  const keys = [
-    h.readUInt32BE(0),
-    h.readUInt32BE(4),
-    h.readUInt32BE(8),
-    h.readUInt32BE(12),
-  ];
-  _keyCache.set(batchCode, keys);
-  return keys;
+// 5-digit sequential code: starts at 10001, increments by 1, no leading zeros
+function seqCode(seq) {
+  return String(10000 + seq); // seq 1 → 10001, seq 89999 → 99999
 }
 
-// Nonlinear round function — MurmurHash3 finaliser mixed with key
-function _feistelF(val, key) {
-  let h = (((val * 0xcc9e2d51) & 0xFFFFFFFF) ^ key) >>> 0;
-  h ^= h >>> 16;
-  h  = (h * 0x85ebca6b) & 0xFFFFFFFF;
-  h ^= h >>> 13;
-  h  = (h * 0xc2b2ae35) & 0xFFFFFFFF;
-  h ^= h >>> 16;
-  return (h >>> 0) % 300;
-}
-
-function _feistelPermute(x, batchCode) {
-  const keys = _feistelKeys(batchCode);
-  let L = Math.floor(x / 300); // [0, 299]
-  let R = x % 300;             // [0, 299]
-  for (const k of keys) {
-    [L, R] = [R, (L + _feistelF(R, k)) % 300];
-  }
-  return L * 300 + R; // [0, 89999]
-}
-
-// 5-digit permuted seq (10000–99999) for a given batch + seq
-function permuteSeq(batchCode, seq) {
-  const x = (seq - 1) % 90000;
-  return String(10000 + _feistelPermute(x, batchCode));
-}
-
-// formatSeq: admin-facing display of raw seq (used in API responses)
+// formatSeq: admin-facing display of raw seq number
 function formatSeq(seq) {
   return String(seq);
 }
 
 function buildSerial(batchCode, seq) {
-  return `${config.serialPrefix}${batchTag(batchCode)}${permuteSeq(batchCode, seq)}`;
+  return `${config.serialPrefix}${batchTag(batchCode)}${seqCode(seq)}`;
 }
 
 function generateHMAC(serial) {
