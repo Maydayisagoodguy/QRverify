@@ -13,6 +13,7 @@ module.exports = {
   port:               parseInt(process.env.PORT || '3000', 10),
   nodeEnv:            process.env.NODE_ENV || 'development',
   verifyBaseUrl:      process.env.VERIFY_BASE_URL || 'http://localhost:3000',
+  serialPrefix:       process.env.SERIAL_PREFIX || 'FM0',
   hmacSecret:         process.env.HMAC_SECRET,
   supabaseUrl:        process.env.SUPABASE_URL,
   supabaseServiceKey: process.env.SUPABASE_SERVICE_KEY,

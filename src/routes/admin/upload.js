@@ -2,7 +2,7 @@
 
 const { adminRateLimit } = require('../../middleware/rateLimit');
 const db = require('../../db');
-const { processExcel, buildZip, buildSerial, generateHMAC, formatSeq } = require('../../services/qrgen');
+const { processExcel, buildPDF, buildSerial, generateHMAC, formatSeq } = require('../../services/qrgen');
 
 module.exports = async function uploadRoutes(fastify) {
 
@@ -96,10 +96,10 @@ module.exports = async function uploadRoutes(fastify) {
       return reply.code(404).send({ error: 'Batch not found or empty', code: 'NOT_FOUND' });
     }
 
-    const buffer = await buildZip(products);
+    const buffer = await buildPDF(products);
     return reply
-      .type('application/zip')
-      .header('Content-Disposition', `attachment; filename="${code}-labels.zip"`)
+      .type('application/pdf')
+      .header('Content-Disposition', `attachment; filename="${code}-stickers.pdf"`)
       .send(buffer);
   });
 

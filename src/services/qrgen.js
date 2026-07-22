@@ -1,20 +1,21 @@
 'use strict';
 
-const crypto          = require('crypto');
-const { PassThrough } = require('stream');
-const QRCode          = require('qrcode');
-const XLSX            = require('xlsx');
-const archiver        = require('archiver');
-const config          = require('../config');
+const crypto      = require('crypto');
+const QRCode      = require('qrcode');
+const PDFDocument = require('pdfkit');
+const XLSX        = require('xlsx');
+const config      = require('../config');
 
 const REQUIRED_COLS = ['batch_code', 'quantity'];
 
+// Serial: {3-char prefix}{1000000 + seq} = always 10 chars, no leading zeros
+// e.g. seq=1 → FM01000001, seq=999 → FM01000999, seq=1000 → FM01001000
 function formatSeq(seq) {
-  return String(seq).padStart(5, '0');
+  return String(1000000 + seq);
 }
 
-function buildSerial(batchCode, seq) {
-  return `${batchCode}-${formatSeq(seq)}`;
+function buildSerial(_batchCode, seq) {
+  return `${config.serialPrefix}${formatSeq(seq)}`;
 }
 
 function generateHMAC(serial) {
@@ -36,8 +37,8 @@ function buildURL(serial, hmac) {
   return `${config.verifyBaseUrl}/v/${serial}?h=${hmac}`;
 }
 
-async function generateQRDataURL(url) {
-  return QRCode.toDataURL(url, {
+async function generateQRBuffer(url) {
+  return QRCode.toBuffer(url, {
     type:                 'png',
     width:                440,
     margin:               1,
@@ -46,68 +47,161 @@ async function generateQRDataURL(url) {
   });
 }
 
-async function generateSVGLabel(serial, seq, hmac) {
-  const url        = buildURL(serial, hmac);
-  const qrData     = await generateQRDataURL(url);
-  const seqStr     = formatSeq(seq);
-  const verifyAt   = config.verifyBaseUrl.replace(/^https?:\/\//, '');
-  const batchPart  = serial.substring(0, serial.lastIndexOf('-'));
+// ── PDF sticker generation ────────────────────────────────────────────────────
+//
+// Page:    A4  (595.28 × 841.89 pt)
+// Sticker: 6in × 2.5in  (432 × 180 pt)
+// Layout:  4 stickers per page, vertically centered with 15pt gaps
+//
+//  LEFT  (0–170):  gray bg, QR image, serial below
+//  RIGHT (175–432): FM badge, "FIRST MOLECULE", scan CTA, verify URL
 
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
-     width="6in" height="2.5in" viewBox="0 0 600 250">
-  <rect width="600" height="250" fill="#FFFFFF"/>
-  <rect x="0.75" y="0.75" width="598.5" height="248.5" fill="none" stroke="#CCCCCC" stroke-width="1.5"/>
+const PAGE_W = 595.28;
+const PAGE_H = 841.89;
+const STK_W  = 432;   // 6 in
+const STK_H  = 180;   // 2.5 in
+const STK_X  = (PAGE_W - STK_W) / 2;
+const GAP    = 18;
+const PER_PG = 4;
+const BLOCK_H = PER_PG * STK_H + (PER_PG - 1) * GAP;
+const STK_Y0  = (PAGE_H - BLOCK_H) / 2;
 
-  <!-- Left panel: QR code -->
-  <rect x="0" y="0" width="250" height="250" fill="#F8F8F8"/>
-  <image xlink:href="${qrData}" x="13" y="13" width="224" height="224"/>
-  <text x="125" y="246" text-anchor="middle"
-        font-family="Courier New, Courier, monospace"
-        font-size="9" font-weight="bold" fill="#555555" letter-spacing="1">${serial}</text>
+const RED    = '#B81F24';
+const DARK   = '#111111';
+const GRAY   = '#666666';
+const LTGRAY = '#AAAAAA';
+const GREEN  = '#22C55E';
+const BGPNL  = '#F7F7F7';
+const DIV_C  = '#E0E0E0';
 
-  <!-- Divider -->
-  <line x1="250" y1="12" x2="250" y2="238" stroke="#DDDDDD" stroke-width="1"/>
+function drawSticker(doc, sx, sy, product, qrBuf) {
+  const DIV_X = sx + 172;
+  const RX    = DIV_X + 12;
+  const RW    = STK_W - 172 - 12 - 10;  // right panel usable width
 
-  <!-- Right panel -->
-  <text x="270" y="44"
-        font-family="Arial, Helvetica, sans-serif"
-        font-size="14.5" font-weight="bold" fill="#111111" letter-spacing="1.2">FIRST MOLECULE</text>
-  <line x1="268" y1="54" x2="592" y2="54" stroke="#EEEEEE" stroke-width="0.75"/>
+  // ── Outer border ──────────────────────────────────────────────────────────
+  doc.save()
+    .rect(sx, sy, STK_W, STK_H)
+    .lineWidth(0.75).strokeColor(DIV_C).stroke()
+    .restore();
 
-  <text x="270" y="80"
-        font-family="Arial, Helvetica, sans-serif"
-        font-size="11.5" font-weight="600" fill="#B81F24">&#x25B6; Scan to Verify</text>
-  <text x="270" y="95"
-        font-family="Arial, Helvetica, sans-serif"
-        font-size="9" fill="#777777">Point your camera at the QR code to check authenticity</text>
+  // ── Left panel background ─────────────────────────────────────────────────
+  doc.save()
+    .rect(sx, sy, 172, STK_H)
+    .fillColor(BGPNL).fill()
+    .restore();
 
-  <line x1="268" y1="107" x2="592" y2="107" stroke="#EEEEEE" stroke-width="0.75"/>
+  // ── QR code ───────────────────────────────────────────────────────────────
+  const QR_S = 130;
+  const qrX  = sx + (172 - QR_S) / 2;
+  const qrY  = sy + 12;
+  doc.image(qrBuf, qrX, qrY, { width: QR_S, height: QR_S });
 
-  <text x="270" y="128"
-        font-family="Arial, Helvetica, sans-serif"
-        font-size="8" fill="#AAAAAA" letter-spacing="1.5">SERIAL NUMBER</text>
+  // ── Serial below QR ───────────────────────────────────────────────────────
+  doc.font('Courier-Bold').fontSize(7.5)
+    .fillColor('#333333')
+    .text(product.serial, sx, sy + 150, { width: 172, align: 'center' });
 
-  <!-- Batch code part — smaller, muted -->
-  <text x="270" y="148"
-        font-family="Courier New, Courier, monospace"
-        font-size="11" fill="#888888" letter-spacing="1.5">${batchPart}</text>
+  // ── Vertical divider ──────────────────────────────────────────────────────
+  doc.save()
+    .moveTo(DIV_X, sy + 12)
+    .lineTo(DIV_X, sy + STK_H - 12)
+    .lineWidth(0.6).strokeColor(DIV_C).stroke()
+    .restore();
 
-  <!-- Seq number — large, bold, prominent -->
-  <text x="270" y="182"
-        font-family="Courier New, Courier, monospace"
-        font-size="28" font-weight="bold" fill="#111111" letter-spacing="5">${seqStr}</text>
+  // ── FM badge (red circle with white "FM") ─────────────────────────────────
+  const bCX = RX + 13;
+  const bCY = sy + 26;
+  doc.save().circle(bCX, bCY, 13).fillColor(RED).fill().restore();
+  doc.font('Helvetica-Bold').fontSize(8).fillColor('#FFFFFF')
+    .text('FM', bCX - 7.5, bCY - 5, { lineBreak: false });
 
-  <line x1="268" y1="196" x2="592" y2="196" stroke="#EEEEEE" stroke-width="0.75"/>
+  // ── FIRST MOLECULE heading ────────────────────────────────────────────────
+  doc.font('Helvetica-Bold').fontSize(10.5).fillColor(DARK)
+    .text('FIRST MOLECULE', RX + 30, sy + 17, { width: RW - 30, lineBreak: false });
 
-  <text x="270" y="216"
-        font-family="Arial, Helvetica, sans-serif"
-        font-size="8" fill="#BBBBBB">Verify at: ${verifyAt}</text>
-  <text x="270" y="232"
-        font-family="Courier New, Courier, monospace"
-        font-size="7.5" fill="#DDDDDD">${serial}</text>
-</svg>`;
+  doc.font('Helvetica').fontSize(6.5).fillColor(LTGRAY)
+    .text('Premium Quality Products', RX + 30, sy + 31, { width: RW - 30, lineBreak: false });
+
+  // Divider 1
+  doc.save().moveTo(RX, sy + 44).lineTo(sx + STK_W - 10, sy + 44)
+    .lineWidth(0.5).strokeColor('#EEEEEE').stroke().restore();
+
+  // ── Scan to Verify ────────────────────────────────────────────────────────
+  doc.font('Helvetica-Bold').fontSize(8.5).fillColor(RED)
+    .text('> Scan to Verify Authenticity', RX, sy + 51, { width: RW });
+
+  doc.font('Helvetica').fontSize(7).fillColor(GRAY)
+    .text(
+      'Point your camera at the QR code to confirm\nthis product is 100% genuine.',
+      RX, sy + 65, { width: RW, lineGap: 1 }
+    );
+
+  // Divider 2
+  doc.save().moveTo(RX, sy + 100).lineTo(sx + STK_W - 10, sy + 100)
+    .lineWidth(0.5).strokeColor('#EEEEEE').stroke().restore();
+
+  // ── Quality mark ──────────────────────────────────────────────────────────
+  doc.font('Helvetica-Bold').fontSize(7.5).fillColor(GREEN)
+    .text('GENUINE PRODUCT', RX, sy + 107, { lineBreak: false });
+
+  doc.font('Helvetica').fontSize(6.5).fillColor(GRAY)
+    .text(
+      'Tamper-evident QR authentication by\nFirst Molecule Quality Control.',
+      RX, sy + 119, { width: RW, lineGap: 1 }
+    );
+
+  // Divider 3
+  doc.save().moveTo(RX, sy + 150).lineTo(sx + STK_W - 10, sy + 150)
+    .lineWidth(0.5).strokeColor('#EEEEEE').stroke().restore();
+
+  // ── Verify URL footer ─────────────────────────────────────────────────────
+  const verifyAt = config.verifyBaseUrl.replace(/^https?:\/\//, '');
+  doc.font('Courier').fontSize(6.5).fillColor(LTGRAY)
+    .text(`Verify at: ${verifyAt}`, RX, sy + 157, { width: RW });
+
+  // ── Cut marks at sticker corners ──────────────────────────────────────────
+  const CM = 5;
+  for (const [cx, cy] of [[sx, sy], [sx + STK_W, sy], [sx, sy + STK_H], [sx + STK_W, sy + STK_H]]) {
+    doc.save()
+      .moveTo(cx - CM, cy).lineTo(cx + CM, cy)
+      .moveTo(cx, cy - CM).lineTo(cx, cy + CM)
+      .lineWidth(0.4).strokeColor('#CCCCCC').stroke()
+      .restore();
+  }
 }
+
+async function buildPDF(products) {
+  const BATCH = 20;
+  const items  = [];
+
+  for (let i = 0; i < products.length; i += BATCH) {
+    const chunk = products.slice(i, i + BATCH);
+    const bufs  = await Promise.all(
+      chunk.map(p => generateQRBuffer(buildURL(p.serial, p.hmac)))
+    );
+    bufs.forEach((buf, idx) => items.push({ product: chunk[idx], qrBuf: buf }));
+  }
+
+  const doc    = new PDFDocument({ size: 'A4', margin: 0, autoFirstPage: true });
+  const chunks = [];
+  doc.on('data', c => chunks.push(c));
+
+  items.forEach(({ product, qrBuf }, i) => {
+    const pos = i % PER_PG;
+    if (i > 0 && pos === 0) doc.addPage();
+    const sy = STK_Y0 + pos * (STK_H + GAP);
+    drawSticker(doc, STK_X, sy, product, qrBuf);
+  });
+
+  return new Promise((resolve, reject) => {
+    doc.on('end',   () => resolve(Buffer.concat(chunks)));
+    doc.on('error', reject);
+    doc.end();
+  });
+}
+
+// ── Excel processing ──────────────────────────────────────────────────────────
 
 async function processExcel(fileBuffer) {
   const workbook = XLSX.read(fileBuffer, { type: 'buffer', cellDates: true });
@@ -156,7 +250,7 @@ async function processExcel(fileBuffer) {
       batchSeqCount.set(batchCode, relSeq);
       products.push({
         _relSeq:            relSeq,
-        serial:             null, // filled after DB offset in route
+        serial:             null,
         hmac:               null,
         seq:                relSeq,
         batch_code:         batchCode,
@@ -170,7 +264,6 @@ async function processExcel(fileBuffer) {
   return { batches: batchMap, products, warnings };
 }
 
-// Generate QR without Excel — called from /admin/generate
 function processForm({ batchCode, quantity, productName, targetCountry, startSeq }) {
   batchCode = String(batchCode).trim().toUpperCase();
   quantity  = parseInt(quantity, 10);
@@ -211,45 +304,13 @@ function processForm({ batchCode, quantity, productName, targetCountry, startSeq
   return { batchMeta, products };
 }
 
-async function buildZip(products) {
-  const BATCH      = 20;
-  const svgEntries = [];
-
-  for (let i = 0; i < products.length; i += BATCH) {
-    const chunk = products.slice(i, i + BATCH);
-    const svgs  = await Promise.all(
-      chunk.map(p => generateSVGLabel(p.serial, p.seq, p.hmac))
-    );
-    svgs.forEach((svg, idx) => svgEntries.push({
-      name: `${formatSeq(chunk[idx].seq)}.svg`,
-      svg,
-    }));
-  }
-
-  const csvLines = ['seq,serial,qr_url,batch_code,product_name'];
-  for (const p of products) {
-    const url = buildURL(p.serial, p.hmac);
-    csvLines.push(`${formatSeq(p.seq)},${p.serial},${url},${p.batch_code},${p.product_name || ''}`);
-  }
-
-  return new Promise((resolve, reject) => {
-    const archive = archiver('zip', { zlib: { level: 6 } });
-    const pass    = new PassThrough();
-    const chunks  = [];
-    const timer   = setTimeout(() => reject(new Error('ZIP generation timed out')), 60000);
-
-    pass.on('data',  c   => chunks.push(c));
-    pass.on('end',   ()  => { clearTimeout(timer); resolve(Buffer.concat(chunks)); });
-    pass.on('error', err => { clearTimeout(timer); reject(err); });
-    archive.on('error', err => { clearTimeout(timer); reject(err); });
-
-    archive.pipe(pass);
-    archive.append(csvLines.join('\n'), { name: 'serials.csv' });
-    for (const { name, svg } of svgEntries) {
-      archive.append(svg, { name });
-    }
-    archive.finalize();
-  });
-}
-
-module.exports = { processExcel, processForm, buildZip, generateHMAC, verifyHMAC, buildURL, buildSerial, formatSeq };
+module.exports = {
+  processExcel,
+  processForm,
+  buildPDF,
+  generateHMAC,
+  verifyHMAC,
+  buildURL,
+  buildSerial,
+  formatSeq,
+};
