@@ -884,7 +884,7 @@
 
             <!-- Batch filter -->
             <div style="padding:7px 14px;border-bottom:1px solid var(--border);flex-shrink:0;">
-              <select id="panel-batch-filter" onchange="renderPanelList()" style="height:30px;padding:0 10px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-card,#fff);color:var(--text-primary);font-size:12px;width:100%;cursor:pointer;outline:none;">
+              <select id="panel-batch-filter" onchange="onPanelBatchFilterChange()" style="height:30px;padding:0 10px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-card,#fff);color:var(--text-primary);font-size:12px;width:100%;cursor:pointer;outline:none;">
                 <option value="">All batches</option>
               </select>
             </div>
@@ -1856,6 +1856,17 @@
           <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">Batch: <span style="color:var(--text-secondary);font-weight:600;">${esc(d.batch_code || '—')}</span></div>
         </div>`;
       }).join('');
+    }
+
+    function onPanelBatchFilterChange() {
+      // Sync panel batch selection into the map-filter-batch hidden select
+      const val = (document.getElementById('panel-batch-filter') || {}).value || '';
+      const mapSel = document.getElementById('map-filter-batch');
+      if (mapSel) mapSel.value = val;
+      // Re-render map dots to match the selected batch
+      renderMapMarkers(currentMapFilter);
+      // Also filter the panel list
+      renderPanelList();
     }
 
     function closeMapPanel() {
