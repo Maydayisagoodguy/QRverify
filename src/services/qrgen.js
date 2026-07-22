@@ -8,35 +8,87 @@ const config      = require('../config');
 
 const REQUIRED_COLS = ['batch_code', 'quantity'];
 
-// ── Serial permutation (LCG bijection) ────────────────────────────────────────
+// ── Serial number design ──────────────────────────────────────────────────────
 //
-// Maps seq (1, 2, 3 …) → a unique, seemingly-random 7-digit number.
-// This is the industry-standard approach used by pharmaceutical and
-// electronics manufacturers: internally the admin tracks seq 1→N,
-// but the printed serial looks non-sequential to outsiders.
+// Format: {PREFIX 3}{BATCH_TAG 2}{SEQ_CODE 5}  = 10 chars, always
 //
-// Hull-Dobell full-period LCG over m = 9,000,000:
-//   f(x) = (LCG_A × x + LCG_C) mod LCG_M   + LCG_BASE
+//   PREFIX    = config.serialPrefix (e.g. "FM0") — brand identifier
+//   BATCH_TAG = 2-digit (10–99) HMAC fingerprint of the batch code
+//               → same batch always gets same tag; visually groups all products
+//                 of one batch (e.g. all "FM071…" serials = BATCH-TEST-001)
+//   SEQ_CODE  = 5-digit (10000–99999) Feistel cipher permutation of seq
+//               → bijective: zero collisions up to 90,000 products per batch
+//               → nonlinear: no sequential digit pattern visible (unlike LCG)
+//               → batch-specific keys: seq 1 of batch A ≠ seq 1 of batch B
+//               → keyed by HMAC_SECRET: unpredictable without the secret
 //
-//   LCG_A  = 1,500,001  (a-1 divisible by 2,3,5 and by 4 → full period)
-//   LCG_C  = 1,234,567  (coprime to m: odd, digit-sum≠0 mod 3, ends ≠ 0/5)
-//   LCG_M  = 9,000,000  (range size: 0 … 8,999,999)
-//   LCG_BASE = 1,000,000 (ensures result is always 7 digits, starts with 1–9)
-//
-// Result: always 7 digits (1000000–9999999), supports up to 9M unique products,
-// no collisions within that range.
+// Admin sees: seq 1–1000 in DB for any batch.  Serial is the printed code.
+// Outsider sees: 10 seemingly-random digits per sticker, no guessable pattern.
+// DB unique constraint catches any theoretical collision on insert.
 
-const LCG_A    = 1500001;
-const LCG_C    = 1234567;
-const LCG_M    = 9000000;
-const LCG_BASE = 1000000;
-
-function formatSeq(seq) {
-  return String(LCG_BASE + ((seq * LCG_A + LCG_C) % LCG_M));
+// ── Batch tag: 2 digits (10–99) ───────────────────────────────────────────────
+function batchTag(batchCode) {
+  const h = crypto.createHmac('sha256', config.hmacSecret)
+    .update(`bt:${batchCode}`).digest();
+  return String(10 + (h.readUInt32BE(0) % 90));
 }
 
-function buildSerial(_batchCode, seq) {
-  return `${config.serialPrefix}${formatSeq(seq)}`;
+// ── Feistel cipher over domain [0, 89999] (300 × 300 balanced split) ──────────
+//
+// A Feistel network is provably bijective regardless of the round function,
+// so every (batchCode, seq) pair maps to a unique 5-digit output.
+// Round keys are derived from HMAC_SECRET so the permutation is secret-keyed.
+
+const _keyCache = new Map();
+
+function _feistelKeys(batchCode) {
+  if (_keyCache.has(batchCode)) return _keyCache.get(batchCode);
+  const h = crypto.createHmac('sha256', config.hmacSecret)
+    .update(`fk:${batchCode}`).digest();
+  const keys = [
+    h.readUInt32BE(0),
+    h.readUInt32BE(4),
+    h.readUInt32BE(8),
+    h.readUInt32BE(12),
+  ];
+  _keyCache.set(batchCode, keys);
+  return keys;
+}
+
+// Nonlinear round function — MurmurHash3 finaliser mixed with key
+function _feistelF(val, key) {
+  let h = (((val * 0xcc9e2d51) & 0xFFFFFFFF) ^ key) >>> 0;
+  h ^= h >>> 16;
+  h  = (h * 0x85ebca6b) & 0xFFFFFFFF;
+  h ^= h >>> 13;
+  h  = (h * 0xc2b2ae35) & 0xFFFFFFFF;
+  h ^= h >>> 16;
+  return (h >>> 0) % 300;
+}
+
+function _feistelPermute(x, batchCode) {
+  const keys = _feistelKeys(batchCode);
+  let L = Math.floor(x / 300); // [0, 299]
+  let R = x % 300;             // [0, 299]
+  for (const k of keys) {
+    [L, R] = [R, (L + _feistelF(R, k)) % 300];
+  }
+  return L * 300 + R; // [0, 89999]
+}
+
+// 5-digit permuted seq (10000–99999) for a given batch + seq
+function permuteSeq(batchCode, seq) {
+  const x = (seq - 1) % 90000;
+  return String(10000 + _feistelPermute(x, batchCode));
+}
+
+// formatSeq: admin-facing display of raw seq (used in API responses)
+function formatSeq(seq) {
+  return String(seq);
+}
+
+function buildSerial(batchCode, seq) {
+  return `${config.serialPrefix}${batchTag(batchCode)}${permuteSeq(batchCode, seq)}`;
 }
 
 function generateHMAC(serial) {

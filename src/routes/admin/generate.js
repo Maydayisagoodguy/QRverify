@@ -2,7 +2,7 @@
 
 const { adminRateLimit } = require('../../middleware/rateLimit');
 const db = require('../../db');
-const { processForm, formatSeq } = require('../../services/qrgen');
+const { processForm } = require('../../services/qrgen');
 
 module.exports = async function generateRoutes(fastify) {
 
@@ -59,8 +59,8 @@ module.exports = async function generateRoutes(fastify) {
       success:    true,
       batch_code: batchMeta.batchCode,
       count:      products.length,
-      from_seq:   formatSeq(startSeq),
-      to_seq:     formatSeq(startSeq + products.length - 1),
+      from_seq:   startSeq,
+      to_seq:     startSeq + products.length - 1,
     };
   });
 
