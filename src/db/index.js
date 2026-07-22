@@ -144,16 +144,25 @@ async function getSerialOverrideCounts() {
 }
 
 async function getSerialLimitGroups(batchCode) {
-  const { data, error } = await db
-    .from('products')
-    .select('seq, scan_limit')
-    .eq('batch_code', batchCode)
-    .not('scan_limit', 'is', null)
-    .order('seq', { ascending: true });
-  if (error) throw error;
+  const [limitRes, prefixRes] = await Promise.all([
+    db.from('products')
+      .select('seq, scan_limit')
+      .eq('batch_code', batchCode)
+      .not('scan_limit', 'is', null)
+      .order('seq', { ascending: true }),
+    db.from('products')
+      .select('serial')
+      .eq('batch_code', batchCode)
+      .order('seq', { ascending: true })
+      .limit(1),
+  ]);
+  if (limitRes.error) throw limitRes.error;
 
-  const rows = data || [];
-  if (!rows.length) return [];
+  const rows = limitRes.data || [];
+  const firstSerial = prefixRes.data?.[0]?.serial || '';
+  const serialPrefix = firstSerial.length >= 5 ? firstSerial.slice(0, 5) : '';
+
+  if (!rows.length) return { groups: [], serialPrefix };
 
   // Collapse consecutive same-limit seqs into ranges
   const groups = [];
@@ -167,7 +176,7 @@ async function getSerialLimitGroups(batchCode) {
       cur.count++;
     }
   }
-  return groups;
+  return { groups, serialPrefix };
 }
 
 // ── Products ──────────────────────────────────────────────────────

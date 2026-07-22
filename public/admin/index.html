@@ -2446,11 +2446,15 @@
       }
     }
 
+    function seqToSerial(prefix, seq) {
+      return prefix ? prefix + (10000 + parseInt(seq, 10)) : String(seq);
+    }
+
     async function renderSerialLimitGroups(batchCode, fallbackEffective) {
       const container = document.getElementById(`lserial-rows-${batchCode}`);
       if (!container) return;
       try {
-        const groups = await api(`/admin/batches/${encodeURIComponent(batchCode)}/serial-limits`);
+        const { groups, serialPrefix } = await api(`/admin/batches/${encodeURIComponent(batchCode)}/serial-limits`);
         if (!groups || !groups.length) {
           container.innerHTML = `
             <div style="padding:16px;display:flex;align-items:center;gap:10px;color:var(--text-muted);">
@@ -2473,9 +2477,9 @@
               ${groups.map((g, i) => `
                 <tr style="border-bottom:${i < groups.length - 1 ? '1px solid var(--border)' : 'none'};">
                   <td style="padding:10px 16px;">
-                    <span style="font-family:monospace;font-size:13px;font-weight:700;color:var(--text-primary);">${String(g.fromSeq).padStart(5,'0')}</span>
+                    <span style="font-family:monospace;font-size:13px;font-weight:700;color:var(--text-primary);">${seqToSerial(serialPrefix, g.fromSeq)}</span>
                     <span style="color:var(--text-muted);margin:0 6px;">→</span>
-                    <span style="font-family:monospace;font-size:13px;font-weight:700;color:var(--text-primary);">${String(g.toSeq).padStart(5,'0')}</span>
+                    <span style="font-family:monospace;font-size:13px;font-weight:700;color:var(--text-primary);">${seqToSerial(serialPrefix, g.toSeq)}</span>
                   </td>
                   <td style="padding:10px 16px;font-size:12px;color:var(--text-secondary);">${g.count} unit${g.count === 1 ? '' : 's'}</td>
                   <td style="padding:10px 16px;">
