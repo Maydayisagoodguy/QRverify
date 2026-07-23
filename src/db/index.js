@@ -188,8 +188,21 @@ async function getProduct(serial) {
 }
 
 async function insertProducts(products) {
-  const { error } = await db.from('products').insert(products);
-  if (error) throw error;
+  const CHUNK       = 500; // Supabase PostgREST row limit per request
+  const CONCURRENCY = 5;   // parallel insert calls per round
+
+  const chunks = [];
+  for (let i = 0; i < products.length; i += CHUNK) {
+    chunks.push(products.slice(i, i + CHUNK));
+  }
+
+  for (let i = 0; i < chunks.length; i += CONCURRENCY) {
+    const round = chunks.slice(i, i + CONCURRENCY);
+    const results = await Promise.all(round.map(chunk => db.from('products').insert(chunk)));
+    for (const { error } of results) {
+      if (error) throw error;
+    }
+  }
 }
 
 async function deactivateBySerial(serial) {
@@ -670,32 +683,14 @@ async function getSerialNetworkData(batchCode) {
 
 async function getMapData(limit = 500, batchCode = null) {
   if (batchCode) {
-    // Fetch all serials for this batch first
-    const { data: prods, error: pe } = await db
-      .from('products')
-      .select('serial, product_name')
-      .eq('batch_code', batchCode);
-    if (pe) throw pe;
-    const prodList = prods || [];
-    if (!prodList.length) return [];
-
-    const serials = prodList.map(p => p.serial);
-    const prodMap = Object.fromEntries(prodList.map(p => [p.serial, p]));
-
-    // No limit — fetch ALL geo scan_logs for this batch's serials
-    const { data, error } = await db
-      .from('scan_logs')
-      .select('serial, lat, lng, result, country, city, scanned_at')
-      .in('serial', serials)
-      .not('lat', 'is', null)
-      .order('scanned_at', { ascending: false });
+    // RPC avoids the PostgREST .in() URL-length limit that breaks for batches
+    // with thousands of serials. The function does a proper SQL JOIN server-side.
+    const { data, error } = await db.rpc('get_batch_map_data', {
+      p_batch_code: batchCode,
+      p_limit:      5000,
+    });
     if (error) throw error;
-
-    return (data || []).map(r => ({
-      ...r,
-      product_name: prodMap[r.serial]?.product_name || null,
-      batch_code:   batchCode,
-    }));
+    return data || [];
   }
 
   // Global fetch — last N scans across all batches

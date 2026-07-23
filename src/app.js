@@ -72,7 +72,16 @@ fastify.register(require('./routes/admin/analytics'),  { prefix: '/admin' });
 fastify.register(require('./routes/admin/config'),     { prefix: '/admin' });
 
 // ── Health check ──────────────────────────────────────────────────
-fastify.get('/health', async () => ({ status: 'ok' }));
+// Pings Supabase so both Render and the DB stay warm under low traffic
+fastify.get('/health', async (request, reply) => {
+  try {
+    const db = require('./db');
+    await db.getConfigValue('__health__');
+    return { status: 'ok' };
+  } catch {
+    return reply.code(503).send({ status: 'error' });
+  }
+});
 
 // ── Error handler ─────────────────────────────────────────────────
 fastify.setErrorHandler((err, request, reply) => {
