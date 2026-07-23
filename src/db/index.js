@@ -233,37 +233,56 @@ async function clearScanLimitForRange(batchCode, fromSeq, toSeq) {
   if (error) throw error;
 }
 
-async function getSerialOverrideCounts() {
-  const { data, error } = await db
-    .from('products')
-    .select('batch_code, scan_limit')
-    .not('scan_limit', 'is', null);
-  if (error) throw error;
-  const counts = {};
-  for (const r of (data || [])) {
-    counts[r.batch_code] = (counts[r.batch_code] || 0) + 1;
+// Count of per-serial scan-limit overrides per batch. Uses one exact head-count
+// per batch so it never hits the PostgREST 1000-row cap (which silently dropped
+// counts when total overrides across batches exceeded 1000).
+async function getSerialOverrideCounts(batchCodes = null) {
+  let codes = batchCodes;
+  if (!codes) {
+    const { data, error } = await db.from('batches').select('batch_code');
+    if (error) throw error;
+    codes = (data || []).map(r => r.batch_code);
   }
+  const counts = {};
+  if (!codes.length) return counts;
+
+  const results = await Promise.all(codes.map(code =>
+    db.from('products')
+      .select('id', { count: 'exact', head: true })
+      .eq('batch_code', code)
+      .not('scan_limit', 'is', null)
+  ));
+  codes.forEach((code, i) => { counts[code] = results[i]?.count || 0; });
   return counts;
 }
 
 async function getSerialLimitGroups(batchCode) {
-  const [limitRes, prefixRes] = await Promise.all([
-    db.from('products')
+  // First serial (for prefix) + ALL overridden seqs. Paginate past the 1000-row
+  // cap so batches with >1000 overridden serials still collapse into correct ranges.
+  const prefixRes = await db
+    .from('products')
+    .select('serial')
+    .eq('batch_code', batchCode)
+    .order('seq', { ascending: true })
+    .limit(1);
+  const firstSerial  = prefixRes.data?.[0]?.serial || '';
+  const serialPrefix = firstSerial.length >= 4 ? firstSerial.slice(0, 4) : '';
+
+  const PAGE = 1000;
+  const rows = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await db
+      .from('products')
       .select('seq, scan_limit')
       .eq('batch_code', batchCode)
       .not('scan_limit', 'is', null)
-      .order('seq', { ascending: true }),
-    db.from('products')
-      .select('serial')
-      .eq('batch_code', batchCode)
       .order('seq', { ascending: true })
-      .limit(1),
-  ]);
-  if (limitRes.error) throw limitRes.error;
-
-  const rows = limitRes.data || [];
-  const firstSerial = prefixRes.data?.[0]?.serial || '';
-  const serialPrefix = firstSerial.length >= 4 ? firstSerial.slice(0, 4) : '';
+      .range(from, from + PAGE - 1);
+    if (error) throw error;
+    const page = data || [];
+    rows.push(...page);
+    if (page.length < PAGE) break;
+  }
 
   if (!rows.length) return { groups: [], serialPrefix };
 
