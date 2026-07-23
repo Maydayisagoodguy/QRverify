@@ -2118,10 +2118,7 @@
     }
 
     function downloadZip(batchCode) {
-      const url = `/admin/batches/${encodeURIComponent(batchCode)}/export`;
-      const a   = document.createElement('a');
-      a.href = url; a.download = `${batchCode}-labels.zip`;
-      document.body.appendChild(a); a.click(); a.remove();
+      window.location.href = `/admin/batch/${encodeURIComponent(batchCode)}`;
     }
 
     let _activeES = null; // active EventSource for cleanup on modal close
@@ -2220,7 +2217,7 @@
           toast(`${r.count.toLocaleString()} QR codes created`, 'success');
           loadedSections.delete('batches');
           loadBatches();
-          setTimeout(() => { closeGenerateModal(); downloadZip(r.batch_code); }, 1800);
+          setTimeout(() => { closeGenerateModal(); window.location.href = `/admin/batch/${encodeURIComponent(r.batch_code)}`; }, 1800);
         } else if (data.type === 'error') {
           es.close(); _activeES = null;
           document.getElementById('gen-prog-bar').style.background = '#EF4444';
