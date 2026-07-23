@@ -170,28 +170,45 @@ module.exports = async function verifyRoutes(fastify) {
       }
     }
 
-    // 7. Log this scan (non-blocking)
-    await safeLogScan({ serial, ip, country, city, lat, lng, userAgent, result, flagReason, isp: vpnInfo?.isp || null }, request.log);
+    // 7. Detect browser prefetch/prerender — Google Safe Browsing and some QR scanner
+    //    apps pre-fetch the URL before the user actually navigates. Standard headers:
+    //    Sec-Purpose: prefetch   (Chrome 107+)
+    //    Purpose: prefetch       (older spec)
+    //    X-Moz: prefetch         (Firefox)
+    //    Sec-Fetch-Mode !== navigate (any non-navigation browser request)
+    const secPurpose   = (request.headers['sec-purpose']    || '').toLowerCase();
+    const purpose      = (request.headers['purpose']        || '').toLowerCase();
+    const xMoz         = (request.headers['x-moz']          || '').toLowerCase();
+    const secFetchMode = (request.headers['sec-fetch-mode'] || '').toLowerCase();
+    const isPrefetch   = secPurpose.includes('prefetch') ||
+                         purpose.includes('prefetch')    ||
+                         xMoz === 'prefetch'             ||
+                         (secFetchMode !== '' && secFetchMode !== 'navigate');
 
-    // 8. Persist alerts + email on critical
-    for (const a of alerts) {
-      try {
-        await db.createAlert({
-          serial,
-          batchCode: product.batch_code,
-          alertType: a.type,
-          severity:  a.severity,
-          details:   a.details,
-        });
-        if (a.severity === 'critical') {
-          sendAlertEmail(a.type, a.severity, a.details).catch(() => {});
+    if (!isPrefetch) {
+      // 8. Log this scan (non-blocking) — only for real user navigations
+      await safeLogScan({ serial, ip, country, city, lat, lng, userAgent, result, flagReason, isp: vpnInfo?.isp || null }, request.log);
+
+      // 9. Persist alerts + email on critical
+      for (const a of alerts) {
+        try {
+          await db.createAlert({
+            serial,
+            batchCode: product.batch_code,
+            alertType: a.type,
+            severity:  a.severity,
+            details:   a.details,
+          });
+          if (a.severity === 'critical') {
+            sendAlertEmail(a.type, a.severity, a.details).catch(() => {});
+          }
+        } catch (err) {
+          request.log.error({ err }, `createAlert failed for ${a.type}`);
         }
-      } catch (err) {
-        request.log.error({ err }, `createAlert failed for ${a.type}`);
       }
     }
 
-    // 9. Redirect to result — signed token hides serial/status/scans from URL
+    // 10. Redirect to result — signed token hides serial/status/scans from URL
     const token = generateResultToken({ serial, status: result, scans: prevScans, remark: product.remark || null });
     return reply.redirect(`/result?t=${token}`);
   });
