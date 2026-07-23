@@ -87,25 +87,13 @@ module.exports = async function uploadRoutes(fastify) {
     return { success: true, total: products.length, batches: batchSummary, warnings };
   });
 
-  fastify.get('/batches/:code/export', {
-    preHandler: [adminRateLimit],
-  }, async (request, reply) => {
-    const { code } = request.params;
-    let products;
-    try {
-      products = await db.getBatchProductsForExport(code);
-    } catch (err) {
-      return reply.code(500).send({ error: 'Database error', code: 'DB_ERROR' });
-    }
-    if (!products || !products.length) {
-      return reply.code(404).send({ error: 'Batch not found or empty', code: 'NOT_FOUND' });
-    }
-
-    const buffer = await buildPDF(products);
-    return reply
-      .type('application/pdf')
-      .header('Content-Disposition', `attachment; filename="${code}-stickers.pdf"`)
-      .send(buffer);
+  // Old direct-download route replaced by SSE job flow in pdf.js
+  // Returning 410 Gone so any cached links fail fast instead of hanging
+  fastify.get('/batches/:code/export', async (request, reply) => {
+    return reply.code(410).send({
+      error: 'This endpoint is no longer available. Use the Download PDF button on the batch page.',
+      code: 'GONE',
+    });
   });
 
 };
