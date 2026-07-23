@@ -42,19 +42,32 @@ module.exports = async function uploadRoutes(fastify) {
       }
     }
 
-    // Global seq counter — guarantees serial uniqueness across all batches
-    let globalSeq;
-    try {
-      globalSeq = await db.getMaxGlobalSeq();
-    } catch (err) {
-      request.log.error({ err }, 'getMaxGlobalSeq failed');
-      return reply.code(500).send({ error: 'Database error', code: 'DB_ERROR' });
+    // Assign batch tags and resolve current max-seq per batch (sequential to avoid race)
+    const batchTagMap    = {};
+    const batchMaxSeqMap = {};
+    for (const batchCode of batches.keys()) {
+      try {
+        batchTagMap[batchCode]    = await db.getOrAssignBatchTag(batchCode);
+        batchMaxSeqMap[batchCode] = await db.getMaxBatchSeq(batchCode);
+      } catch (err) {
+        request.log.error({ err, batchCode }, 'batch tag/seq setup failed');
+        return reply.code(500).send({ error: 'Database error assigning batch tag', code: 'DB_ERROR' });
+      }
     }
 
+    // Build serials with batch-local seq (starts after any existing products in that batch)
+    const batchCurrentSeq = { ...batchMaxSeqMap };
     for (const p of products) {
-      globalSeq++;
-      p.seq    = globalSeq;
-      p.serial = buildSerial(p.batch_code, globalSeq);
+      batchCurrentSeq[p.batch_code]++;
+      const localSeq = batchCurrentSeq[p.batch_code];
+      if (localSeq > 999999) {
+        return reply.code(400).send({
+          error: `Batch ${p.batch_code} would exceed 999,999 serials`,
+          code: 'BATCH_FULL',
+        });
+      }
+      p.seq    = localSeq;
+      p.serial = buildSerial(batchTagMap[p.batch_code], localSeq);
       p.hmac   = generateHMAC(p.serial);
       delete p._relSeq;
     }

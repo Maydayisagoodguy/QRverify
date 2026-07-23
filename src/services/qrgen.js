@@ -10,37 +10,31 @@ const REQUIRED_COLS = ['batch_code', 'quantity'];
 
 // ── Serial number design ──────────────────────────────────────────────────────
 //
-// Format: {PREFIX 2}{BATCH_TAG 2}{GLOBAL_SEQ 7}  = 11 chars, always
+// Format: {PREFIX 2}{BATCH_TAG 2}{LOCAL_SEQ 6}  = 10 chars, always
 //
-//   PREFIX     = config.serialPrefix (e.g. "FM") — brand identifier
-//   BATCH_TAG  = 2-digit (10–99) HMAC fingerprint of the batch code
-//                → same batch always gets same tag; visually groups a batch
-//                → visual only — uniqueness is guaranteed by GLOBAL_SEQ
-//   GLOBAL_SEQ = 7-digit globally unique counter across ALL batches
-//                → starts at 1000001, max 9999999 = 8,999,999 total QRs
-//                → collision impossible: no two products ever share a seq
+//   PREFIX    = config.serialPrefix (e.g. "FM") — brand identifier
+//   BATCH_TAG = 2 random uppercase letters (AA–ZZ), unique per batch
+//               → randomly assigned at first QR generation for a batch
+//               → stored in batches.batch_tag column
+//               → 26×26 = 676 possible tags → 675,999,324 max unique serials
+//   LOCAL_SEQ = 6-digit counter within the batch (000001–999999)
+//               → unique only within the batch namespace (batch_tag guarantees global uniqueness)
+//               → starts at 000001, max 999999
 //
-// Examples for BATCH-TEST-001 (tag = 23):
-//   first global seq 1000001 → FM231000001
-//   second                   → FM231000002
-//   1000th                   → FM231001000
+// Examples for BATCH-TEST-001 (tag = AB):
+//   unit 1 → FMAB000001
+//   unit 2 → FMAB000002
+//   unit 1000 → FMAB001000
 
-// 2-digit batch tag (10–99) — deterministic from batch code + HMAC secret
-// Visual grouping only — uniqueness is guaranteed by the global seq, not this tag
-function batchTag(batchCode) {
-  const h = crypto.createHmac('sha256', config.hmacSecret)
-    .update(`bt:${batchCode}`).digest();
-  return String(10 + (h.readUInt32BE(0) % 90));
-}
-
-// formatSeq: admin-facing display of the global seq number
+// formatSeq: admin-facing display of the local seq number
 function formatSeq(seq) {
   return String(seq);
 }
 
-// seq must be a globally unique integer (1000001–9999999)
-function buildSerial(batchCode, seq) {
-  return `${config.serialPrefix}${batchTag(batchCode)}${seq}`;
+// batchTag: 2 random uppercase letters — assigned externally (see db.getOrAssignBatchTag)
+// localSeq: integer 1–999999 within the batch
+function buildSerial(batchTag, localSeq) {
+  return `${config.serialPrefix}${batchTag}${String(localSeq).padStart(6, '0')}`;
 }
 
 function generateHMAC(serial) {
@@ -289,13 +283,17 @@ async function processExcel(fileBuffer) {
   return { batches: batchMap, products, warnings };
 }
 
-function processForm({ batchCode, quantity, productName, targetCountry, startSeq }) {
+// batchTag: 2 uppercase letters (e.g. 'AB') — caller must obtain via db.getOrAssignBatchTag
+// startSeq: first local seq for this generation run (1 if new batch, maxExistingSeq+1 otherwise)
+function processForm({ batchCode, batchTag, quantity, productName, targetCountry, startSeq }) {
   batchCode = String(batchCode).trim().toUpperCase();
   quantity  = parseInt(quantity, 10);
   startSeq  = parseInt(startSeq, 10) || 1;
 
   if (!batchCode)          throw new Error('batch_code is required');
+  if (!batchTag || batchTag.length !== 2) throw new Error('batchTag is required (2 uppercase letters)');
   if (!quantity || quantity < 1) throw new Error('quantity must be at least 1');
+  if (startSeq + quantity - 1 > 999999) throw new Error('Batch would exceed 999,999 serials per tag');
 
   const name = productName ? String(productName).trim() : batchCode;
 
@@ -313,7 +311,7 @@ function processForm({ batchCode, quantity, productName, targetCountry, startSeq
   const products = [];
   for (let i = 0; i < quantity; i++) {
     const seq    = startSeq + i;
-    const serial = buildSerial(batchCode, seq);
+    const serial = buildSerial(batchTag, seq);
     const hmac   = generateHMAC(serial);
     products.push({
       serial,

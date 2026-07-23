@@ -2553,7 +2553,7 @@
     }
 
     function seqToSerial(prefix, seq) {
-      return prefix ? prefix + (10000 + parseInt(seq, 10)) : String(seq);
+      return prefix ? prefix + String(parseInt(seq, 10)).padStart(6, '0') : String(seq);
     }
 
     async function renderSerialLimitGroups(batchCode, fallbackEffective) {

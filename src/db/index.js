@@ -57,26 +57,19 @@ async function getBatches() {
   if (error) throw error;
   if (!rows?.length) return [];
 
-  // Enrich with scan counts using two-query pattern
-  const { data: products } = await db
-    .from('products')
-    .select('batch_code, serial')
-    .in('batch_code', rows.map(r => r.batch_code));
-
-  const serialToBatch = {};
-  for (const p of (products || [])) serialToBatch[p.serial] = p.batch_code;
-
-  const allSerials = Object.keys(serialToBatch);
+  // Count scans per batch using batch_code column in scan_logs — no serial join needed
   const batchScanCount = {};
-  if (allSerials.length) {
-    const { data: scanRows } = await db
-      .from('scan_logs')
-      .select('serial')
-      .in('serial', allSerials);
-    for (const s of (scanRows || [])) {
-      const bc = serialToBatch[s.serial];
-      if (bc) batchScanCount[bc] = (batchScanCount[bc] || 0) + 1;
-    }
+  if (rows.length) {
+    const scanResults = await Promise.all(
+      rows.map(r =>
+        db.from('scan_logs')
+          .select('id', { count: 'exact', head: true })
+          .eq('batch_code', r.batch_code)
+      )
+    );
+    rows.forEach((r, i) => {
+      batchScanCount[r.batch_code] = scanResults[i]?.count || 0;
+    });
   }
 
   return rows.map(r => ({
@@ -260,17 +253,65 @@ async function getBatchProductsForExport(batchCode, { offset = 0, limit = null }
   return all;
 }
 
-// Global seq counter across ALL batches — guarantees serial uniqueness forever.
-// Floor at 1,000,000 so the first new serial has a 7-digit seq (1000001).
-async function getMaxGlobalSeq() {
+// ── Batch tag assignment ──────────────────────────────────────────
+
+// All valid 2-letter batch tags: AA through ZZ (676 total)
+const ALL_TAGS = [];
+for (let i = 0; i < 26; i++)
+  for (let j = 0; j < 26; j++)
+    ALL_TAGS.push(String.fromCharCode(65 + i) + String.fromCharCode(65 + j));
+
+// Returns the batch_tag assigned to this batch, assigning a new random one if needed.
+// Tags are stored in batches.batch_tag and are globally unique across all batches.
+async function getOrAssignBatchTag(batchCode) {
+  // Return existing tag if already assigned
+  const { data: batch, error: bErr } = await db
+    .from('batches')
+    .select('batch_tag')
+    .eq('batch_code', batchCode)
+    .maybeSingle();
+  if (bErr) throw bErr;
+  if (batch?.batch_tag) return batch.batch_tag;
+
+  // Collect all currently used tags
+  const { data: usedRows, error: uErr } = await db
+    .from('batches')
+    .select('batch_tag')
+    .not('batch_tag', 'is', null);
+  if (uErr) throw uErr;
+
+  const used = new Set((usedRows || []).map(r => r.batch_tag).filter(Boolean));
+  const available = ALL_TAGS.filter(t => !used.has(t));
+  if (!available.length) throw new Error('All 676 batch tag combinations are in use');
+
+  // Pick a random available tag
+  const tag = available[Math.floor(Math.random() * available.length)];
+
+  const { error: upErr } = await db
+    .from('batches')
+    .update({ batch_tag: tag })
+    .eq('batch_code', batchCode);
+  if (upErr) {
+    // Race condition — another request may have assigned a tag; re-read
+    const { data: fresh } = await db.from('batches')
+      .select('batch_tag').eq('batch_code', batchCode).maybeSingle();
+    if (fresh?.batch_tag) return fresh.batch_tag;
+    throw upErr;
+  }
+  return tag;
+}
+
+// Max local seq within a specific batch (0 if no products yet; first seq will be 1)
+async function getMaxBatchSeq(batchCode) {
   const { data, error } = await db
     .from('products')
     .select('seq')
+    .eq('batch_code', batchCode)
     .order('seq', { ascending: false })
     .limit(1)
     .maybeSingle();
   if (error) throw error;
-  return Math.max(data?.seq || 0, 1000000);
+  return data?.seq || 0;
 }
 
 async function getSerialsByBatch(batchCode, { remarkFilter, page = 1, limit = 200 } = {}) {
@@ -807,7 +848,8 @@ module.exports = {
   deactivateByBatch,
   getBatchProducts,
   getBatchProductsForExport,
-  getMaxGlobalSeq,
+  getOrAssignBatchTag,
+  getMaxBatchSeq,
   getSerialsByBatch,
   applyRemarkToRange,
   clearRemarkRange,

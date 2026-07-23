@@ -35,11 +35,21 @@ module.exports = async function generateRoutes(fastify) {
       });
     }
 
-    let startSeq;
+    let batchTag, startSeq;
     try {
-      startSeq = (await db.getMaxGlobalSeq()) + 1;
+      await db.upsertBatch({
+        batchCode: batch_code,
+        productName: product_name || null,
+        manufacturer: null, countryOfOrigin: null, distributor: null,
+        regionExpected: null, productImageUrl: null,
+        targetCountry: target_country || null,
+      });
+      [batchTag, startSeq] = await Promise.all([
+        db.getOrAssignBatchTag(batch_code),
+        db.getMaxBatchSeq(batch_code).then(m => m + 1),
+      ]);
     } catch (err) {
-      request.log.error({ err }, 'getMaxGlobalSeq failed');
+      request.log.error({ err }, 'batch setup failed');
       return reply.code(500).send({ error: 'Database error', code: 'DB_ERROR' });
     }
 
@@ -47,6 +57,7 @@ module.exports = async function generateRoutes(fastify) {
     try {
       ({ batchMeta, products } = processForm({
         batchCode:     batch_code,
+        batchTag,
         quantity:      qty,
         productName:   product_name   || null,
         targetCountry: target_country || null,
@@ -54,13 +65,6 @@ module.exports = async function generateRoutes(fastify) {
       }));
     } catch (err) {
       return reply.code(400).send({ error: err.message, code: 'INVALID_PARAM' });
-    }
-
-    try {
-      await db.upsertBatch(batchMeta);
-    } catch (err) {
-      request.log.error({ err }, 'Batch upsert failed');
-      return reply.code(500).send({ error: 'Database error creating batch', code: 'DB_ERROR' });
     }
 
     // Create job entry

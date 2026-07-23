@@ -441,6 +441,7 @@
     <div class="card">
       <div class="card-header">
         <span class="card-title">Serial Numbers</span>
+        <span id="serial-total-label" style="font-size:12px;color:var(--text-muted);margin-left:6px;"></span>
         <div class="filter-bar">
           <div style="display:flex;align-items:center;gap:8px;">
             <span style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;white-space:nowrap;">Filter by remark</span>
@@ -509,7 +510,7 @@
   const batchCode = decodeURIComponent(window.location.pathname.split('/').pop());
   let _batchScanLimit  = null;
   let _globalScanLimit = 1;
-  let _serialPrefix    = '';   // first 4 chars of any serial in this batch (prefix + batch tag)
+  let _serialPrefix    = '';   // first 4 chars of any serial in this batch (e.g. "FMAB")
   let _batchTotal      = 0;    // total units in this batch (for PDF section logic)
 
   // Pagination state for serial table
@@ -519,10 +520,10 @@
   let _serialRemark = null;
   const SERIAL_LIMIT = 200;
 
-  function seqToSerial(seq) {
-    const n = parseInt(seq, 10);
+  function seqToSerial(localSeq) {
+    const n = parseInt(localSeq, 10);
     if (!_serialPrefix || !n || n < 1) return '';
-    return _serialPrefix + String(n).padStart(7, '0');
+    return _serialPrefix + String(n).padStart(6, '0');
   }
 
   function updateSeqHints() {
@@ -602,13 +603,14 @@
       document.getElementById('stat-country').textContent = batch.target_country || '—';
       document.getElementById('stat-created').textContent = 'Created ' + fmtDate(batch.created_at);
 
-      // Update placeholder hints so admin knows valid range
-      const minSeq = stats.minSeq || 1;
-      const maxSeq = stats.maxSeq || stats.total || 1;
-      document.getElementById('from-seq').placeholder = String(minSeq);
-      document.getElementById('to-seq').placeholder   = String(maxSeq);
-      document.getElementById('from-seq').value = '';
-      document.getElementById('to-seq').value   = '';
+      // Placeholders use batch-local numbering (1 = first unit, total = last unit)
+      const localTotal = stats.total || 1;
+      document.getElementById('from-seq').placeholder    = '1';
+      document.getElementById('to-seq').placeholder      = String(localTotal);
+      document.getElementById('from-seq').value          = '';
+      document.getElementById('to-seq').value            = '';
+      document.getElementById('sl-from-seq').placeholder = '1';
+      document.getElementById('sl-to-seq').placeholder   = String(localTotal);
     } catch (err) {
       toast('Failed to load batch: ' + err.message, 'error');
       document.getElementById('page-batch-code').textContent = batchCode;
@@ -667,7 +669,7 @@
       const effectiveLimit = _batchScanLimit ?? _globalScanLimit;
 
       tbody.innerHTML = rows.map(r => {
-        const seq      = r.seq != null ? String(r.seq).padStart(5, '0') : '—';
+        const seq = r.seq != null ? r.seq.toLocaleString() : '—';
         const exceeded = r.scan_count >= effectiveLimit;
         const rowStyle = exceeded ? 'background:rgba(220,38,38,0.04);' : '';
         const status   = r.is_active
@@ -711,8 +713,18 @@
     const next = document.getElementById('serial-next-btn');
     if (!pg) return;
 
-    if (_serialTotal === 0) { pg.style.display = 'none'; return; }
+    const totalLabel = document.getElementById('serial-total-label');
+    if (_serialTotal === 0) {
+      pg.style.display = 'none';
+      if (totalLabel) totalLabel.textContent = '';
+      return;
+    }
     pg.style.display = 'flex';
+    if (totalLabel) {
+      totalLabel.textContent = _serialRemark
+        ? `· ${_serialTotal.toLocaleString()} matching`
+        : `· ${_serialTotal.toLocaleString()} total`;
+    }
 
     const from = (_serialPage - 1) * SERIAL_LIMIT + 1;
     const to   = Math.min(_serialPage * SERIAL_LIMIT, _serialTotal);
@@ -750,11 +762,12 @@
         _serialPrefix = serialPrefix;
         updateSeqHints();
       }
-      const ser = seq => serialPrefix ? serialPrefix + String(seq).padStart(7, '0') : String(seq);
+      const ser = seq => serialPrefix ? serialPrefix + String(seq).padStart(6, '0') : String(seq);
       wrap.style.display = '';
       container.innerHTML = groups.map(g => `
         <div style="display:flex;align-items:center;gap:10px;padding:7px 12px;margin-bottom:4px;background:var(--bg-alt,#F8F9FC);border:1px solid var(--border);border-radius:6px;font-size:13px;">
-          <span style="font-family:monospace;font-size:12px;font-weight:700;color:var(--text-primary);min-width:180px;">${ser(g.fromSeq)} – ${ser(g.toSeq)}</span>
+          <span style="font-weight:700;color:var(--text-primary);">Units ${g.fromSeq.toLocaleString()}–${g.toSeq.toLocaleString()}</span>
+          <span style="font-family:monospace;font-size:11px;color:var(--text-muted);">${ser(g.fromSeq)}–${ser(g.toSeq)}</span>
           <span style="font-size:11px;color:var(--text-muted);">${g.count} unit${g.count === 1 ? '' : 's'}</span>
           <span style="font-weight:700;color:#6366F1;margin-left:auto;">Limit: ${g.limit}</span>
           <button class="btn btn-danger-soft btn-sm" style="font-size:11px;"
@@ -800,7 +813,7 @@
         method: 'DELETE',
         body: { from_seq: fromSeq, to_seq: toSeq },
       });
-      toast(`Cleared limit for serials ${fromSeq}–${toSeq}`, 'success');
+      toast(`Cleared limit for units ${fromSeq}–${toSeq}`, 'success');
       await loadSerialLimitGroups();
       loadSerials();
     } catch (err) {
@@ -1041,7 +1054,6 @@
   // ── Refresh all ────────────────────────────────────────────────────
   async function refreshAll() {
     const remarkFilter = document.getElementById('remark-filter').value;
-    // Load global limit first so serials render with correct threshold
     await loadGlobalLimit();
     await Promise.all([loadBatchDetail(), loadSerials(remarkFilter || null), loadRemarkFilter(), loadSerialLimitGroups()]);
   }
