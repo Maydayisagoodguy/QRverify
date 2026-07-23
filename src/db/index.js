@@ -166,6 +166,35 @@ async function getRemarksSummary() {
   return [...map.values()].sort((a, b) => a.remark.localeCompare(b.remark));
 }
 
+// True if a batch with this exact code already exists
+async function batchExists(batchCode) {
+  const { data, error } = await db
+    .from('batches')
+    .select('batch_code')
+    .eq('batch_code', batchCode)
+    .maybeSingle();
+  if (error) throw error;
+  return !!data;
+}
+
+// Suggest the next professional batch code: FM-YYYYMM-NNN (sequential within the month)
+async function suggestNextBatchCode() {
+  const now    = new Date();
+  const ym     = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const prefix = `FM-${ym}-`;
+  const { data, error } = await db
+    .from('batches')
+    .select('batch_code')
+    .ilike('batch_code', `${prefix}%`);
+  if (error) throw error;
+  let max = 0;
+  for (const r of (data || [])) {
+    const n = parseInt(r.batch_code.slice(prefix.length), 10);
+    if (!isNaN(n) && n > max) max = n;
+  }
+  return `${prefix}${String(max + 1).padStart(3, '0')}`;
+}
+
 async function getBatchById(batchCode) {
   const { data, error } = await db
     .from('batches')
@@ -926,6 +955,8 @@ module.exports = {
   getBatches,
   getBatchesPage,
   getRemarksSummary,
+  batchExists,
+  suggestNextBatchCode,
   getBatchById,
   setScanLimitForBatch,
   setScanLimitForRange,

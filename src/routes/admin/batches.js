@@ -22,6 +22,16 @@ module.exports = async function batchRoutes(fastify) {
     }
   });
 
+  // Suggest the next professional batch code (FM-YYYYMM-NNN) for the Generate modal
+  fastify.get('/batches/suggest-code', { preHandler: [adminRateLimit] }, async (request, reply) => {
+    try {
+      return { code: await db.suggestNextBatchCode() };
+    } catch (err) {
+      request.log.error({ err }, 'suggestNextBatchCode failed');
+      return reply.code(500).send({ error: 'Database error', code: 'DB_ERROR' });
+    }
+  });
+
   // Distinct remarks across all batches, with the batches + serial counts carrying each
   fastify.get('/remarks-summary', { preHandler: [adminRateLimit] }, async (request, reply) => {
     try {

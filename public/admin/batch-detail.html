@@ -284,6 +284,16 @@
       background: #FFFBEB; font-size: 12px; color: #92400E;
     }
     .info-strip svg { width: 14px; height: 14px; flex-shrink: 0; }
+
+    /* Searchable dropdown (enhances native <select>) */
+    .ss-wrap  { position: relative; display: inline-block; vertical-align: top; }
+    .ss-input { width: 100%; height: 34px; padding: 0 12px; border: 1px solid var(--border,#E4E4E7); border-radius: var(--radius-sm,6px); font-family: inherit; font-size: 13px; color: var(--text-primary,#18181B); background: #fff; outline: none; cursor: text; box-sizing: border-box; }
+    .ss-input:focus { border-color: #B81F24; }
+    .ss-panel { position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 60; background: #fff; border: 1px solid var(--border,#E4E4E7); border-radius: var(--radius-sm,6px); box-shadow: 0 8px 24px rgba(0,0,0,0.12); max-height: 240px; overflow-y: auto; }
+    .ss-item  { padding: 8px 12px; font-size: 13px; color: var(--text-primary,#18181B); cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .ss-item:hover { background: #f3f4f6; }
+    .ss-item.ss-active { background: rgba(99,102,241,0.08); font-weight: 600; }
+    .ss-empty { padding: 10px 12px; font-size: 12px; color: var(--text-muted,#71717A); }
   </style>
 </head>
 <body>
@@ -579,6 +589,77 @@
     return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 
+  // ── Searchable dropdown ──────────────────────────────────────────
+  // Enhances a native <select> into a type-to-filter combobox; the <select>
+  // stays the source of truth. Call refreshSearchable(id) after changing options/value.
+  function enhanceSearchable(id) {
+    const select = typeof id === 'string' ? document.getElementById(id) : id;
+    if (!select || select.dataset.ssEnhanced) return;
+    select.dataset.ssEnhanced = '1';
+
+    const wrap = document.createElement('div');
+    wrap.className = 'ss-wrap';
+    wrap.style.minWidth = select.style.minWidth || '180px';
+    wrap.style.width    = select.style.width    || '';
+    select.parentNode.insertBefore(wrap, select);
+    wrap.appendChild(select);
+    select.style.display = 'none';
+
+    const input = document.createElement('input');
+    input.type = 'text'; input.className = 'ss-input'; input.autocomplete = 'off';
+    wrap.appendChild(input);
+
+    const panel = document.createElement('div');
+    panel.className = 'ss-panel'; panel.style.display = 'none';
+    wrap.appendChild(panel);
+
+    const placeholderText = () => select.options[0] ? select.options[0].textContent : '';
+    const selectedText    = () => { const o = select.selectedOptions[0]; return (o && select.value) ? o.textContent : ''; };
+
+    function renderPanel(filter) {
+      const f = (filter || '').trim().toLowerCase();
+      panel.innerHTML = '';
+      let any = false;
+      for (const opt of select.options) {
+        const label = opt.textContent;
+        if (f && !label.toLowerCase().includes(f)) continue;
+        any = true;
+        const item = document.createElement('div');
+        item.className = 'ss-item' + (opt.value === select.value ? ' ss-active' : '');
+        item.textContent = label;
+        item.addEventListener('mousedown', (e) => {
+          e.preventDefault();
+          select.value = opt.value;
+          input.value  = selectedText();
+          panel.style.display = 'none';
+          select.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+        panel.appendChild(item);
+      }
+      if (!any) {
+        const empty = document.createElement('div');
+        empty.className = 'ss-empty'; empty.textContent = 'No matches';
+        panel.appendChild(empty);
+      }
+    }
+
+    input.addEventListener('focus', () => { input.value = ''; renderPanel(''); panel.style.display = 'block'; });
+    input.addEventListener('input', () => { renderPanel(input.value); panel.style.display = 'block'; });
+    input.addEventListener('blur',  () => { setTimeout(() => { panel.style.display = 'none'; input.value = selectedText(); }, 120); });
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') { panel.style.display = 'none'; input.value = selectedText(); input.blur(); }
+      else if (e.key === 'Enter') { const first = panel.querySelector('.ss-item'); if (first) { e.preventDefault(); first.dispatchEvent(new MouseEvent('mousedown')); } }
+    });
+
+    select._ssRefresh = () => { input.placeholder = placeholderText(); input.value = selectedText(); };
+    select._ssRefresh();
+  }
+
+  function refreshSearchable(id) {
+    const select = typeof id === 'string' ? document.getElementById(id) : id;
+    if (select && select._ssRefresh) select._ssRefresh();
+  }
+
   // ── Load global scan limit ─────────────────────────────────────────
   async function loadGlobalLimit() {
     try {
@@ -622,7 +703,8 @@
   // ── Load remarks filter ────────────────────────────────────────────
   async function loadRemarkFilter() {
     try {
-      const remarks = await api(`/admin/batches/${encodeURIComponent(batchCode)}/remarks`);
+      const remarks = (await api(`/admin/batches/${encodeURIComponent(batchCode)}/remarks`))
+        .slice().sort((a, b) => String(a).localeCompare(String(b)));
       const sel = document.getElementById('remark-filter');
       const current = sel.value;
       while (sel.options.length > 1) sel.remove(1);
@@ -638,6 +720,7 @@
       } else if (current && remarks.includes(current)) {
         sel.value = current;
       }
+      refreshSearchable('remark-filter');
     } catch (_) {}
   }
 
@@ -1071,6 +1154,7 @@
   }
 
   // ── Init ───────────────────────────────────────────────────────────
+  enhanceSearchable('remark-filter');
   refreshAll();
 </script>
 </body>

@@ -692,6 +692,16 @@
       .topbar  { padding: 0 20px; }
       .stats-grid { grid-template-columns: repeat(2, 1fr); }
     }
+
+    /* Searchable dropdown (enhances native <select>) */
+    .ss-wrap  { position: relative; display: inline-block; vertical-align: top; }
+    .ss-input { width: 100%; height: 36px; padding: 0 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-family: inherit; font-size: 13px; color: var(--text-primary); background: var(--white, #fff); outline: none; cursor: text; box-sizing: border-box; }
+    .ss-input:focus { border-color: var(--accent, #B81F24); }
+    .ss-panel { position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 60; background: var(--white, #fff); border: 1px solid var(--border); border-radius: var(--radius-sm); box-shadow: 0 8px 24px rgba(0,0,0,0.12); max-height: 240px; overflow-y: auto; }
+    .ss-item  { padding: 8px 12px; font-size: 13px; color: var(--text-primary); cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .ss-item:hover { background: var(--gray-100, #f3f4f6); }
+    .ss-item.ss-active { background: rgba(99,102,241,0.08); font-weight: 600; }
+    .ss-empty { padding: 10px 12px; font-size: 12px; color: var(--text-muted); }
   </style>
 </head>
 <body>
@@ -1023,7 +1033,8 @@
           <div id="gen-form-fields" style="display:flex;flex-direction:column;gap:14px;">
             <div>
               <label style="font-size:11px;font-weight:600;color:#71717A;text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:5px;">Batch Code *</label>
-              <input id="gen-batch" type="text" placeholder="e.g. BATCH-2026-001" style="width:100%;height:36px;padding:0 12px;border:1px solid #E4E4E7;border-radius:6px;font-size:13px;font-family:inherit;"/>
+              <input id="gen-batch" type="text" placeholder="e.g. FM-202607-001" style="width:100%;height:36px;padding:0 12px;border:1px solid #E4E4E7;border-radius:6px;font-size:13px;font-family:inherit;"/>
+              <div style="font-size:11px;color:#A1A1AA;margin-top:4px;">Auto-suggested. Must be unique — an existing code is rejected.</div>
             </div>
             <div>
               <label style="font-size:11px;font-weight:600;color:#71717A;text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:5px;">Quantity *</label>
@@ -1314,6 +1325,9 @@
 
     // ── Init ───────────────────────────────────────────────────────
     function init() {
+      // Turn every filter <select> into a searchable, sorted combobox
+      ['dash-batch-select', 'alert-filter-batch', 'scan-filter-batch',
+       'network-batch-select', 'batch-remark-filter'].forEach(enhanceSearchable);
       loadAlertBadge();
       loadBatchDropdowns();  // populate batch dropdowns across all sections
       // Honour any hash from sidebar links on other pages (e.g. batch-detail)
@@ -1492,8 +1506,10 @@
           sel.innerHTML = '<option value="">No batches with scans yet</option>';
           return;
         }
+        const sortedBatches = [...batches].sort((a, b) => a.batch_code.localeCompare(b.batch_code));
         sel.innerHTML = '<option value="">— Choose a batch —</option>' +
-          batches.map(b => `<option value="${esc(b.batch_code)}">${esc(b.batch_code)}${b.product_name ? ' · ' + esc(b.product_name) : ''}</option>`).join('');
+          sortedBatches.map(b => `<option value="${esc(b.batch_code)}">${esc(b.batch_code)}${b.product_name ? ' · ' + esc(b.product_name) : ''}</option>`).join('');
+        refreshSearchable('network-batch-select');
       } catch {
         sel.innerHTML = '<option value="">Failed to load batches</option>';
       }
@@ -1990,6 +2006,7 @@
         // Preserve selection if it still exists
         if (current && _remarksSummary.some(r => r.remark === current)) sel.value = current;
         else if (current) { _activeRemark = null; }
+        refreshSearchable('batch-remark-filter');
       } catch (_) {}
     }
 
@@ -2090,6 +2107,7 @@
       if (_activeRemark) {
         _activeRemark = null;
         document.getElementById('batch-remark-filter').value = '';
+        refreshSearchable('batch-remark-filter');
         document.getElementById('batch-remark-context').style.display = 'none';
       }
       document.getElementById('batch-filter-clear').style.display = (_batchSearch) ? '' : 'none';
@@ -2117,6 +2135,7 @@
       _activeRemark = null;
       document.getElementById('batch-search').value = '';
       document.getElementById('batch-remark-filter').value = '';
+      refreshSearchable('batch-remark-filter');
       document.getElementById('batch-remark-context').style.display = 'none';
       document.getElementById('batch-filter-clear').style.display = 'none';
       _batchesPage = 1;
@@ -2185,6 +2204,7 @@
       if (sel) sel.value = '';
       const dashSel = document.getElementById('dash-batch-select');
       if (dashSel) dashSel.value = '';
+      refreshSearchable('dash-batch-select');
       document.getElementById('dash-batch-clear-btn').style.display = 'none';
       document.getElementById('dash-batch-context').style.display = 'none';
       document.getElementById('batch-context-strip').style.display = 'none';
@@ -2213,22 +2233,25 @@
 
     function onDashBatchClear() {
       document.getElementById('dash-batch-select').value = '';
+      refreshSearchable('dash-batch-select');
       onDashBatchChange();
     }
 
     function populateBatchDropdowns(codes) {
+      const sorted = [...codes].sort((a, b) => a.localeCompare(b));
       const targets = ['alert-filter-batch', 'map-filter-batch', 'dash-batch-select', 'scan-filter-batch'];
       for (const id of targets) {
         const sel = document.getElementById(id);
         if (!sel) continue;
         const current = sel.value;
         while (sel.options.length > 1) sel.remove(1);
-        for (const code of codes) {
+        for (const code of sorted) {
           const opt = document.createElement('option');
           opt.value = code; opt.textContent = code;
           sel.appendChild(opt);
         }
         if (current) sel.value = current;
+        refreshSearchable(sel);
       }
     }
 
@@ -2242,10 +2265,18 @@
 
     let _activeES = null; // active EventSource for cleanup on modal close
 
-    function openGenerateModal() {
+    async function openGenerateModal() {
       const m = document.getElementById('generate-modal');
       m.style.display = 'flex';
-      document.getElementById('gen-batch').focus();
+      const batchInput = document.getElementById('gen-batch');
+      batchInput.value = '';
+      // Prefill a professional, non-colliding batch code (editable)
+      try {
+        const { code } = await api('/admin/batches/suggest-code');
+        if (code && !batchInput.value) batchInput.value = code;
+      } catch (_) {}
+      batchInput.focus();
+      batchInput.select();
     }
 
     function closeGenerateModal() {
@@ -2279,12 +2310,14 @@
       try {
         res = await api('/admin/generate', {
           method: 'POST',
-          body: { batch_code, quantity, product_name, target_country },
+          body: { batch_code, quantity, product_name, target_country, require_new: true },
         });
       } catch (err) {
         btn.disabled = false;
         btn.textContent = 'Generate & Save';
-        toast('Failed: ' + err.message, 'error');
+        let msg = err.message;
+        try { const j = JSON.parse(err.message); if (j.error) msg = j.error; } catch (_) {}
+        toast(msg, 'error');
         return;
       }
 
@@ -2439,6 +2472,7 @@
       document.getElementById('scan-filter-batch').value  = '';
       document.getElementById('scan-filter-from').value   = '';
       document.getElementById('scan-filter-to').value     = '';
+      refreshSearchable('scan-filter-batch');
       loadScans();
     }
 
@@ -2550,6 +2584,92 @@
     function debounce(fn, ms) {
       let t;
       return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
+    }
+
+    // ── Searchable dropdown ────────────────────────────────────────
+    // Enhances a native <select> into a type-to-filter combobox while keeping the
+    // <select> as the source of truth — existing .value reads and onchange handlers
+    // keep working unchanged. Call refreshSearchable(id) after changing options/value
+    // programmatically so the visible input re-syncs.
+    function enhanceSearchable(id) {
+      const select = typeof id === 'string' ? document.getElementById(id) : id;
+      if (!select || select.dataset.ssEnhanced) return;
+      select.dataset.ssEnhanced = '1';
+
+      const wrap = document.createElement('div');
+      wrap.className = 'ss-wrap';
+      wrap.style.flex     = select.style.flex     || '';
+      wrap.style.minWidth = select.style.minWidth || '180px';
+      wrap.style.maxWidth = select.style.maxWidth || '';
+      wrap.style.width    = select.style.width    || '';
+
+      select.parentNode.insertBefore(wrap, select);
+      wrap.appendChild(select);
+      select.style.display = 'none';
+
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.className = 'ss-input';
+      input.autocomplete = 'off';
+      wrap.appendChild(input);
+
+      const panel = document.createElement('div');
+      panel.className = 'ss-panel';
+      panel.style.display = 'none';
+      wrap.appendChild(panel);
+
+      const placeholderText = () => select.options[0] ? select.options[0].textContent : '';
+      const selectedText    = () => {
+        const o = select.selectedOptions[0];
+        return (o && select.value) ? o.textContent : '';
+      };
+
+      function renderPanel(filter) {
+        const f = (filter || '').trim().toLowerCase();
+        panel.innerHTML = '';
+        let any = false;
+        for (const opt of select.options) {
+          const label = opt.textContent;
+          if (f && !label.toLowerCase().includes(f)) continue;
+          any = true;
+          const item = document.createElement('div');
+          item.className = 'ss-item' + (opt.value === select.value ? ' ss-active' : '');
+          item.textContent = label;
+          item.addEventListener('mousedown', (e) => {
+            e.preventDefault();               // fire before input blur
+            select.value = opt.value;
+            input.value  = selectedText();
+            panel.style.display = 'none';
+            select.dispatchEvent(new Event('change', { bubbles: true }));
+          });
+          panel.appendChild(item);
+        }
+        if (!any) {
+          const empty = document.createElement('div');
+          empty.className = 'ss-empty';
+          empty.textContent = 'No matches';
+          panel.appendChild(empty);
+        }
+      }
+
+      input.addEventListener('focus', () => { input.value = ''; renderPanel(''); panel.style.display = 'block'; });
+      input.addEventListener('input', () => { renderPanel(input.value); panel.style.display = 'block'; });
+      input.addEventListener('blur',  () => { setTimeout(() => { panel.style.display = 'none'; input.value = selectedText(); }, 120); });
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') { panel.style.display = 'none'; input.value = selectedText(); input.blur(); }
+        else if (e.key === 'Enter') {
+          const first = panel.querySelector('.ss-item');
+          if (first) { e.preventDefault(); first.dispatchEvent(new MouseEvent('mousedown')); }
+        }
+      });
+
+      select._ssRefresh = () => { input.placeholder = placeholderText(); input.value = selectedText(); };
+      select._ssRefresh();
+    }
+
+    function refreshSearchable(id) {
+      const select = typeof id === 'string' ? document.getElementById(id) : id;
+      if (select && select._ssRefresh) select._ssRefresh();
     }
 
     window.addEventListener('resize', () => {

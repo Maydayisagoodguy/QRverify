@@ -18,10 +18,26 @@ module.exports = async function generateRoutes(fastify) {
 
   // ── POST /admin/generate — validate + kick off background job ─────
   fastify.post('/generate', { preHandler: [adminRateLimit] }, async (request, reply) => {
-    const { batch_code, quantity, product_name, target_country } = request.body || {};
+    const { batch_code, quantity, product_name, target_country, require_new } = request.body || {};
 
     if (!batch_code || !quantity) {
       return reply.code(400).send({ error: 'batch_code and quantity are required', code: 'MISSING_PARAM' });
+    }
+
+    // New-batch creation (from the Batches page) must not collide with an existing code.
+    // Adding units from a batch's own page omits require_new, so appending stays allowed.
+    if (require_new) {
+      try {
+        if (await db.batchExists(String(batch_code).trim().toUpperCase())) {
+          return reply.code(409).send({
+            error: 'A batch with this code already exists. Choose a different code, or add units from that batch’s page.',
+            code: 'DUPLICATE_BATCH',
+          });
+        }
+      } catch (err) {
+        request.log.error({ err }, 'batchExists check failed');
+        return reply.code(500).send({ error: 'Database error', code: 'DB_ERROR' });
+      }
     }
 
     const qty = parseInt(quantity, 10);
