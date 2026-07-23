@@ -113,7 +113,8 @@ CREATE TABLE IF NOT EXISTS alerts (
   alert_type   TEXT          NOT NULL
                CHECK (alert_type IN (
                  'DUPLICATE_SCAN', 'SCAN_LIMIT_EXCEEDED', 'MASS_CLONE',
-                 'GEO_ANOMALY', 'HIGH_SCAN_COUNT', 'PRODUCT_RECALLED'
+                 'GEO_ANOMALY', 'HIGH_SCAN_COUNT', 'PRODUCT_RECALLED',
+                 'MULTI_IP_SCAN', 'SUSPECTED_PROXY'
                )),
   severity     TEXT          NOT NULL
                CHECK (severity IN ('critical', 'high', 'medium', 'low')),
