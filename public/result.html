@@ -680,9 +680,9 @@
       const band = document.getElementById('status-band');
       const st   = STATUS[s] || STATUS.fake;
 
-      // Scan count pill (shown in hero for verified/warning)
+      // Scan count pill — shown ONLY on a duplicate (warning) scan, never on a clean verified scan
       let scanPill = '';
-      if (s === 'verified' || s === 'warning') {
+      if (s === 'warning') {
         if (scans === 0) {
           scanPill = `<div class="scan-history first-scan" style="display:inline-flex;margin:14px auto 0;">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
