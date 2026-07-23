@@ -994,14 +994,16 @@
             <span style="font-size:16px;font-weight:700;">Generate QR Codes</span>
             <button onclick="closeGenerateModal()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#71717A;">✕</button>
           </div>
-          <div style="display:flex;flex-direction:column;gap:14px;">
+          <!-- Form fields -->
+          <div id="gen-form-fields" style="display:flex;flex-direction:column;gap:14px;">
             <div>
               <label style="font-size:11px;font-weight:600;color:#71717A;text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:5px;">Batch Code *</label>
               <input id="gen-batch" type="text" placeholder="e.g. BATCH-2026-001" style="width:100%;height:36px;padding:0 12px;border:1px solid #E4E4E7;border-radius:6px;font-size:13px;font-family:inherit;"/>
             </div>
             <div>
               <label style="font-size:11px;font-weight:600;color:#71717A;text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:5px;">Quantity *</label>
-              <input id="gen-qty" type="number" placeholder="e.g. 100" min="1" max="100000" style="width:100%;height:36px;padding:0 12px;border:1px solid #E4E4E7;border-radius:6px;font-size:13px;font-family:inherit;"/>
+              <input id="gen-qty" type="number" placeholder="e.g. 1000" min="1" style="width:100%;height:36px;padding:0 12px;border:1px solid #E4E4E7;border-radius:6px;font-size:13px;font-family:inherit;"/>
+              <div style="font-size:11px;color:#A1A1AA;margin-top:4px;">Max 89,999 per batch code. For more, use a new batch code.</div>
             </div>
             <div>
               <label style="font-size:11px;font-weight:600;color:#71717A;text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:5px;">Product Name (optional)</label>
@@ -1012,7 +1014,18 @@
               <input id="gen-country" type="text" placeholder="e.g. India" style="width:100%;height:36px;padding:0 12px;border:1px solid #E4E4E7;border-radius:6px;font-size:13px;font-family:inherit;"/>
             </div>
           </div>
-          <div style="display:flex;gap:8px;margin-top:20px;">
+
+          <!-- Progress view (shown during/after generation) -->
+          <div id="gen-progress-view" style="display:none;padding:4px 0 8px;">
+            <div id="gen-prog-label" style="font-size:13px;font-weight:600;color:#18181B;text-align:center;margin-bottom:14px;">Saving to database…</div>
+            <div id="gen-prog-count" style="font-size:26px;font-weight:700;color:#18181B;text-align:center;margin-bottom:14px;font-variant-numeric:tabular-nums;letter-spacing:-0.02em;">0 / 0</div>
+            <div style="height:10px;background:#F4F4F5;border-radius:99px;overflow:hidden;margin-bottom:8px;">
+              <div id="gen-prog-bar" style="height:100%;width:0%;background:#B81F24;border-radius:99px;transition:width 0.3s ease;"></div>
+            </div>
+            <div id="gen-prog-eta" style="font-size:11px;color:#A1A1AA;text-align:center;">Starting…</div>
+          </div>
+
+          <div id="gen-form-actions" style="display:flex;gap:8px;margin-top:20px;">
             <button class="btn btn-primary" style="flex:1;" onclick="generateQR()">Generate &amp; Save</button>
             <button class="btn btn-ghost" onclick="closeGenerateModal()">Cancel</button>
           </div>
@@ -2111,6 +2124,8 @@
       document.body.appendChild(a); a.click(); a.remove();
     }
 
+    let _activeES = null; // active EventSource for cleanup on modal close
+
     function openGenerateModal() {
       const m = document.getElementById('generate-modal');
       m.style.display = 'flex';
@@ -2118,34 +2133,112 @@
     }
 
     function closeGenerateModal() {
+      if (_activeES) { _activeES.close(); _activeES = null; }
       document.getElementById('generate-modal').style.display = 'none';
       document.getElementById('gen-result').style.display = 'none';
+      // Reset to form view
+      document.getElementById('gen-progress-view').style.display = 'none';
+      document.getElementById('gen-form-fields').style.display = 'flex';
+      document.getElementById('gen-form-actions').style.display = 'flex';
+      const bar = document.getElementById('gen-prog-bar');
+      bar.style.width = '0%';
+      bar.style.background = '#B81F24';
+      const btn = document.querySelector('#generate-modal .btn-primary');
+      if (btn) { btn.disabled = false; btn.textContent = 'Generate & Save'; }
     }
 
     async function generateQR() {
-      const batch_code     = document.getElementById('gen-batch').value.trim();
+      const batch_code     = document.getElementById('gen-batch').value.trim().toUpperCase();
       const quantity       = parseInt(document.getElementById('gen-qty').value, 10);
       const product_name   = document.getElementById('gen-product').value.trim() || null;
       const target_country = document.getElementById('gen-country').value.trim() || null;
 
-      if (!batch_code || !quantity) { toast('Batch code and quantity are required', 'error'); return; }
+      if (!batch_code || !quantity || quantity < 1) { toast('Batch code and quantity are required', 'error'); return; }
 
+      const btn = document.querySelector('#generate-modal .btn-primary');
+      btn.disabled = true;
+      btn.textContent = 'Starting…';
+
+      let res;
       try {
-        const res = await api('/admin/generate', {
+        res = await api('/admin/generate', {
           method: 'POST',
           body: { batch_code, quantity, product_name, target_country },
         });
-        const msg = `✓ ${res.count} QR codes created (${res.from_seq}–${res.to_seq})`;
-        const r = document.getElementById('gen-result');
-        r.textContent = msg; r.style.display = 'block';
-        toast(msg, 'success');
-        loadedSections.delete('batches');
-        loadBatches();
-        // Auto-download ZIP after 800ms
-        setTimeout(() => downloadZip(res.batch_code), 800);
       } catch (err) {
+        btn.disabled = false;
+        btn.textContent = 'Generate & Save';
         toast('Failed: ' + err.message, 'error');
+        return;
       }
+
+      const { jobId, total } = res;
+
+      // Switch modal to progress view
+      document.getElementById('gen-form-fields').style.display = 'none';
+      document.getElementById('gen-form-actions').style.display = 'none';
+      document.getElementById('gen-progress-view').style.display = 'block';
+      document.getElementById('gen-prog-label').textContent = 'Saving to database…';
+      document.getElementById('gen-prog-count').textContent = `0 / ${total.toLocaleString()}`;
+      document.getElementById('gen-prog-eta').textContent = 'Starting…';
+      document.getElementById('gen-prog-bar').style.width = '0%';
+      document.getElementById('gen-prog-bar').style.background = '#B81F24';
+
+      const startTime = Date.now();
+
+      const updateProgress = (done, tot) => {
+        const pct = tot > 0 ? (done / tot) * 100 : 0;
+        document.getElementById('gen-prog-bar').style.width = pct + '%';
+        document.getElementById('gen-prog-count').textContent = `${done.toLocaleString()} / ${tot.toLocaleString()}`;
+        const elapsed = (Date.now() - startTime) / 1000;
+        if (done > 0 && elapsed > 0.5) {
+          const rate = done / elapsed;
+          const secsLeft = (tot - done) / rate;
+          const eta = secsLeft < 60
+            ? `~${Math.ceil(secsLeft)}s remaining`
+            : `~${Math.ceil(secsLeft / 60)}m remaining`;
+          document.getElementById('gen-prog-eta').textContent = `${Math.round(pct)}% · ${eta}`;
+        }
+      };
+
+      if (_activeES) _activeES.close();
+      const es = new EventSource(`/admin/generate/progress/${jobId}`);
+      _activeES = es;
+
+      es.onmessage = (e) => {
+        const data = JSON.parse(e.data);
+        if (data.type === 'progress') {
+          updateProgress(data.done, data.total);
+        } else if (data.type === 'done') {
+          es.close(); _activeES = null;
+          const r = data.result;
+          document.getElementById('gen-prog-bar').style.width = '100%';
+          document.getElementById('gen-prog-bar').style.background = '#16A34A';
+          document.getElementById('gen-prog-count').textContent = `${r.count.toLocaleString()} / ${r.count.toLocaleString()}`;
+          document.getElementById('gen-prog-label').textContent = 'Generation complete!';
+          document.getElementById('gen-prog-eta').textContent = `${r.count.toLocaleString()} QR codes saved · seq ${r.from_seq}–${r.to_seq}`;
+          toast(`${r.count.toLocaleString()} QR codes created`, 'success');
+          loadedSections.delete('batches');
+          loadBatches();
+          setTimeout(() => { closeGenerateModal(); downloadZip(r.batch_code); }, 1800);
+        } else if (data.type === 'error') {
+          es.close(); _activeES = null;
+          document.getElementById('gen-prog-bar').style.background = '#EF4444';
+          document.getElementById('gen-prog-label').textContent = 'Generation failed';
+          document.getElementById('gen-prog-eta').textContent = data.message;
+          // Show cancel button so user can close
+          document.getElementById('gen-form-actions').style.display = 'flex';
+          toast('Generation failed: ' + data.message, 'error');
+        }
+      };
+
+      es.onerror = () => {
+        if (es.readyState === EventSource.CLOSED) return;
+        es.close(); _activeES = null;
+        document.getElementById('gen-prog-eta').textContent = 'Connection lost — check if generation completed';
+        document.getElementById('gen-form-actions').style.display = 'flex';
+        toast('Connection to server lost', 'error');
+      };
     }
 
     async function recallBatch(batchCode, btn) {

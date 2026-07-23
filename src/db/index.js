@@ -187,9 +187,10 @@ async function getProduct(serial) {
   return data;
 }
 
-async function insertProducts(products) {
+async function insertProducts(products, onProgress) {
   const CHUNK       = 500; // Supabase PostgREST row limit per request
   const CONCURRENCY = 5;   // parallel insert calls per round
+  let inserted = 0;
 
   const chunks = [];
   for (let i = 0; i < products.length; i += CHUNK) {
@@ -202,6 +203,8 @@ async function insertProducts(products) {
     for (const { error } of results) {
       if (error) throw error;
     }
+    inserted += round.reduce((sum, c) => sum + c.length, 0);
+    if (onProgress) onProgress(inserted, products.length);
   }
 }
 
