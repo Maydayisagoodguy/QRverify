@@ -317,6 +317,38 @@ function processForm({ batchCode, quantity, productName, targetCountry, startSeq
   return { batchMeta, products };
 }
 
+function generateResultToken({ serial, status, scans, remark }) {
+  const payload = Buffer.from(JSON.stringify({
+    s: serial,
+    r: status,
+    c: scans,
+    k: remark || null,
+    e: Date.now() + 60_000,
+  })).toString('base64url');
+  const sig = crypto.createHmac('sha256', config.hmacSecret)
+    .update(payload).digest('hex').slice(0, 32);
+  return `${payload}.${sig}`;
+}
+
+function verifyResultToken(token) {
+  if (!token || typeof token !== 'string') return null;
+  const dot = token.lastIndexOf('.');
+  if (dot === -1) return null;
+  const payload  = token.slice(0, dot);
+  const sig      = token.slice(dot + 1);
+  const expected = crypto.createHmac('sha256', config.hmacSecret)
+    .update(payload).digest('hex').slice(0, 32);
+  if (sig.length !== expected.length) return null;
+  try {
+    if (!crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) return null;
+  } catch { return null; }
+  let data;
+  try { data = JSON.parse(Buffer.from(payload, 'base64url').toString()); }
+  catch { return null; }
+  if (!data.e || Date.now() > data.e) return null;
+  return { serial: data.s, status: data.r, scans: data.c ?? 0, remark: data.k || null };
+}
+
 module.exports = {
   processExcel,
   processForm,
@@ -326,4 +358,6 @@ module.exports = {
   buildURL,
   buildSerial,
   formatSeq,
+  generateResultToken,
+  verifyResultToken,
 };

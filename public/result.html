@@ -631,33 +631,65 @@
         heading:  'This Product Has Been Recalled',
         sub:      'First Molecule has issued a recall on this product. Please stop using it and contact the manufacturer.',
       },
+      expired: {
+        eyebrow:  'Result Expired',
+        heading:  'Please Scan Again',
+        sub:      'This verification result has expired. Scan the QR code directly to get a fresh result.',
+      },
+      error: {
+        eyebrow:  'Unable to Verify',
+        heading:  'Please Scan the QR Code',
+        sub:      'Open this page by scanning the QR code on your product, not by typing the URL.',
+      },
     };
 
-    const serial    = window.location.pathname.split('/').filter(Boolean).pop();
-    const params    = new URLSearchParams(window.location.search);
-    const status    = params.get('status') || 'fake';
-    const prevScans = parseInt(params.get('scans') || '0', 10);
-    const remark    = params.get('remark') || null;
-
     async function init() {
-      renderStatus(status);
-      renderBody(status, remark);
+      const params = new URLSearchParams(window.location.search);
+      const s = params.get('s');
+      const t = params.get('t');
+
+      if (s === 'fake') {
+        renderStatus('fake', 0);
+        renderBody('fake', null);
+        return;
+      }
+
+      if (!t) {
+        renderStatus('error', 0);
+        renderBody('error', null);
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/r?t=' + encodeURIComponent(t));
+        if (!res.ok) {
+          renderStatus('expired', 0);
+          renderBody('expired', null);
+          return;
+        }
+        const data = await res.json();
+        renderStatus(data.status, data.scans);
+        renderBody(data.status, data.remark);
+      } catch {
+        renderStatus('error', 0);
+        renderBody('error', null);
+      }
     }
 
-    function renderStatus(s) {
+    function renderStatus(s, scans) {
       const band = document.getElementById('status-band');
       const st   = STATUS[s] || STATUS.fake;
 
       // Scan count pill (shown in hero for verified/warning)
       let scanPill = '';
       if (s === 'verified' || s === 'warning') {
-        if (prevScans === 0) {
+        if (scans === 0) {
           scanPill = `<div class="scan-history first-scan" style="display:inline-flex;margin:14px auto 0;">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
             First scan of this product
           </div>`;
         } else {
-          const times = prevScans === 1 ? '1 time' : `${prevScans} times`;
+          const times = scans === 1 ? '1 time' : `${scans} times`;
           scanPill = `<div class="scan-history prev-scans" style="display:inline-flex;margin:14px auto 0;">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
             Scanned ${times} previously

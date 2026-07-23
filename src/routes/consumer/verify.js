@@ -1,7 +1,7 @@
 'use strict';
 
 const db             = require('../../db');
-const { verifyHMAC } = require('../../services/qrgen');
+const { verifyHMAC, generateResultToken } = require('../../services/qrgen');
 const { lookupIP }   = require('../../services/geoip');
 const { checkIP }    = require('../../services/vpn');
 const { sendAlertEmail } = require('../../services/mailer');
@@ -39,11 +39,11 @@ module.exports = async function verifyRoutes(fastify) {
     const userAgent = request.headers['user-agent'] || '';
 
     if (!serial || serial.length > 200) {
-      return reply.redirect('/result/invalid?status=fake');
+      return reply.redirect('/result?s=fake');
     }
     if (!hmac || hmac.length !== 16 || !/^[0-9a-f]+$/i.test(hmac)) {
       await safeLogScan({ serial: serial.slice(0, 200), ip, country: null, city: null, lat: null, lng: null, userAgent, result: 'fake', flagReason: 'INVALID_HMAC_FORMAT' }, request.log);
-      return reply.redirect(`/result/${encodeURIComponent(serial.slice(0, 200))}?status=fake`);
+      return reply.redirect('/result?s=fake');
     }
 
     const { country, city, lat, lng } = lookupIP(ip);
@@ -53,7 +53,7 @@ module.exports = async function verifyRoutes(fastify) {
     // 1. Validate HMAC
     if (!verifyHMAC(serial, hmac)) {
       await safeLogScan({ serial, ip, country, city, lat, lng, userAgent, result: 'fake', flagReason: 'INVALID_HMAC' }, request.log);
-      return reply.redirect(`/result/${encodeURIComponent(serial)}?status=fake`);
+      return reply.redirect('/result?s=fake');
     }
 
     // 2. Fetch product + VPN check in parallel
@@ -67,12 +67,13 @@ module.exports = async function verifyRoutes(fastify) {
 
     if (!product) {
       await safeLogScan({ serial, ip, country, city, lat, lng, userAgent, result: 'fake', flagReason: 'SERIAL_NOT_FOUND', isp: vpnInfo?.isp || null }, request.log);
-      return reply.redirect(`/result/${encodeURIComponent(serial)}?status=fake`);
+      return reply.redirect('/result?s=fake');
     }
 
     if (!product.is_active) {
       await safeLogScan({ serial, ip, country, city, lat, lng, userAgent, result: 'inactive', flagReason: 'PRODUCT_RECALLED', isp: vpnInfo?.isp || null }, request.log);
-      return reply.redirect(`/result/${encodeURIComponent(serial)}?status=inactive`);
+      const iToken = generateResultToken({ serial, status: 'inactive', scans: 0, remark: null });
+      return reply.redirect(`/result?t=${iToken}`);
     }
 
     // 3. Fetch history + batch data + global config in parallel
@@ -190,8 +191,8 @@ module.exports = async function verifyRoutes(fastify) {
       }
     }
 
-    // 9. Redirect to result
-    const remark = product.remark ? `&remark=${encodeURIComponent(product.remark)}` : '';
-    return reply.redirect(`/result/${encodeURIComponent(serial)}?status=${result}&scans=${prevScans}${remark}`);
+    // 9. Redirect to result — signed token hides serial/status/scans from URL
+    const token = generateResultToken({ serial, status: result, scans: prevScans, remark: product.remark || null });
+    return reply.redirect(`/result?t=${token}`);
   });
 };
