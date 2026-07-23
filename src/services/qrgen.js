@@ -283,7 +283,7 @@ function processForm({ batchCode, quantity, productName, targetCountry, startSeq
   startSeq  = parseInt(startSeq, 10) || 1;
 
   if (!batchCode)                                    throw new Error('batch_code is required');
-  if (!quantity || quantity < 1 || quantity > 10000) throw new Error('quantity must be 1–10000');
+  if (!quantity || quantity < 1 || quantity > 100000) throw new Error('quantity must be 1-100000');
 
   const name = productName ? String(productName).trim() : batchCode;
 
