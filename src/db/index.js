@@ -160,7 +160,7 @@ async function getSerialLimitGroups(batchCode) {
 
   const rows = limitRes.data || [];
   const firstSerial = prefixRes.data?.[0]?.serial || '';
-  const serialPrefix = firstSerial.length >= 5 ? firstSerial.slice(0, 5) : '';
+  const serialPrefix = firstSerial.length >= 4 ? firstSerial.slice(0, 4) : '';
 
   if (!rows.length) return { groups: [], serialPrefix };
 
@@ -234,19 +234,30 @@ async function getBatchProducts(batchCode) {
 }
 
 async function getBatchProductsForExport(batchCode, { offset = 0, limit = null } = {}) {
-  let q = db
-    .from('products')
-    .select('serial, hmac, seq, product_name, batch_code')
-    .eq('batch_code', batchCode)
-    .order('seq', { ascending: true });
+  // Paginate in 1,000-row chunks to bypass Supabase PostgREST max_rows default.
+  const PAGE = 1000;
+  const all  = [];
+  const cap  = limit !== null ? limit : 5_000_000;
 
-  if (limit !== null) {
-    q = q.range(offset, offset + limit - 1);
+  while (all.length < cap) {
+    const pageSize = Math.min(PAGE, cap - all.length);
+    const from = offset + all.length;
+    const to   = from + pageSize - 1;
+
+    const { data, error } = await db
+      .from('products')
+      .select('serial, hmac, seq, product_name, batch_code')
+      .eq('batch_code', batchCode)
+      .order('seq', { ascending: true })
+      .range(from, to);
+
+    if (error) throw error;
+    const rows = data || [];
+    all.push(...rows);
+    if (rows.length < pageSize) break;
   }
 
-  const { data, error } = await q;
-  if (error) throw error;
-  return data || [];
+  return all;
 }
 
 // Global seq counter across ALL batches — guarantees serial uniqueness forever.
@@ -336,15 +347,23 @@ async function getDistinctRemarks(batchCode) {
 }
 
 async function getBatchDetail(batchCode) {
-  const [batchRes, statsRes] = await Promise.all([
+  // Four parallel queries: batch meta, exact product count, product sample (for stats),
+  // and the highest seq in this batch (for remark-range placeholder).
+  const [batchRes, countRes, sampleRes, maxSeqRes] = await Promise.all([
     db.from('batches').select('*').eq('batch_code', batchCode).maybeSingle(),
-    db.from('products').select('seq, serial, remark').eq('batch_code', batchCode).limit(100000),
+    db.from('products').select('*', { count: 'exact', head: true }).eq('batch_code', batchCode),
+    db.from('products').select('seq, serial, remark').eq('batch_code', batchCode)
+      .order('seq', { ascending: true }).limit(1000),
+    db.from('products').select('seq').eq('batch_code', batchCode)
+      .order('seq', { ascending: false }).limit(1).maybeSingle(),
   ]);
   if (batchRes.error) throw batchRes.error;
-  if (statsRes.error) throw statsRes.error;
+  if (countRes.error) throw countRes.error;
+  if (sampleRes.error) throw sampleRes.error;
 
-  const batch    = batchRes.data;
-  const products = statsRes.data || [];
+  const batch      = batchRes.data;
+  const products   = sampleRes.data || [];
+  const totalCount = countRes.count ?? products.length;
   if (!batch) return null;
 
   const serials = products.map(p => p.serial);
@@ -370,14 +389,14 @@ async function getBatchDetail(batchCode) {
   return {
     batch,
     stats: {
-      total:        products.length,
+      total:        totalCount,
       totalScans,
       verified,
       warning,
       fake,
       activeAlerts,
       remarkCount,
-      maxSeq:       products.length ? Math.max(...products.map(p => p.seq || 0)) : 0,
+      maxSeq:       maxSeqRes.data?.seq || 0,
       scan_limit:   batch.scan_limit ?? null,
     },
   };

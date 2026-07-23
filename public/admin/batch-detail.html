@@ -491,6 +491,10 @@
     <div id="pdf-prog-bar" style="height:100%;width:0%;background:#B81F24;border-radius:99px;transition:width 0.3s ease;"></div>
   </div>
   <div id="pdf-prog-eta" style="font-size:11px;color:#A1A1AA;">Starting…</div>
+  <a id="pdf-manual-link" href="#" download style="display:none;margin-top:10px;font-size:12px;
+    font-weight:600;color:#B81F24;text-decoration:underline;cursor:pointer;">
+    ↓ Click here if download didn't start
+  </a>
 </div>
 
 <script>
@@ -503,7 +507,7 @@
   function seqToSerial(seq) {
     const n = parseInt(seq, 10);
     if (!_serialPrefix || !n || n < 1) return '';
-    return _serialPrefix + (10000 + n);
+    return _serialPrefix + String(n).padStart(7, '0');
   }
 
   function updateSeqHints() {
@@ -628,9 +632,9 @@
         return;
       }
 
-      // Capture serial prefix (e.g. "FM071") from first row for live hints
-      if (!_serialPrefix && rows[0]?.serial && rows[0].serial.length >= 5) {
-        _serialPrefix = rows[0].serial.slice(0, 5);
+      // Capture serial prefix "FM{batch-tag}" (4 chars) from first row for live hints
+      if (!_serialPrefix && rows[0]?.serial && rows[0].serial.length >= 4) {
+        _serialPrefix = rows[0].serial.slice(0, 4);
         updateSeqHints();
       }
 
@@ -693,7 +697,7 @@
         _serialPrefix = serialPrefix;
         updateSeqHints();
       }
-      const ser = seq => serialPrefix ? serialPrefix + (10000 + seq) : String(seq);
+      const ser = seq => serialPrefix ? serialPrefix + String(seq).padStart(7, '0') : String(seq);
       wrap.style.display = '';
       container.innerHTML = groups.map(g => `
         <div style="display:flex;align-items:center;gap:10px;padding:7px 12px;margin-bottom:4px;background:var(--bg-alt,#F8F9FC);border:1px solid var(--border);border-radius:6px;font-size:13px;">
@@ -800,30 +804,41 @@
 
     const statusEl = document.getElementById('gen-status');
     statusEl.style.display = 'block';
-    statusEl.textContent = 'Generating…';
+    statusEl.textContent   = 'Starting…';
 
     try {
-      const res = await api('/admin/generate', {
+      const { jobId } = await api('/admin/generate', {
         method: 'POST',
         body: { batch_code: batchCode, quantity: qty, product_name: name || undefined },
       });
-      statusEl.textContent = `Generated serials ${String(res.from_seq).padStart(5,'0')} – ${String(res.to_seq).padStart(5,'0')}. Downloading ZIP…`;
-      toast(`${qty} QR code${qty > 1 ? 's' : ''} generated`, 'success');
 
-      setTimeout(() => {
-        const url = `/admin/batches/${encodeURIComponent(batchCode)}/export`;
-        window.location.href = url;
-        statusEl.textContent = '';
-        statusEl.style.display = 'none';
-        document.getElementById('gen-qty').value = '';
-        document.getElementById('gen-name').value = '';
-      }, 800);
+      await new Promise((resolve, reject) => {
+        const es = new EventSource(`/admin/generate/progress/${jobId}`);
+        es.onmessage = (e) => {
+          const d = JSON.parse(e.data);
+          if (d.type === 'progress') {
+            statusEl.textContent = `Inserting ${d.done.toLocaleString()} / ${d.total.toLocaleString()}…`;
+          } else if (d.type === 'done') {
+            es.close();
+            const r = d.result || {};
+            statusEl.textContent = r.from_seq ? `Done — serials ${r.from_seq}–${r.to_seq}` : 'Done';
+            toast(`${qty} QR code${qty > 1 ? 's' : ''} generated`, 'success');
+            resolve();
+          } else if (d.type === 'error') {
+            es.close(); reject(new Error(d.message));
+          }
+        };
+        es.onerror = () => { es.close(); reject(new Error('Connection lost')); };
+      });
 
+      document.getElementById('gen-qty').value  = '';
+      document.getElementById('gen-name').value = '';
       await refreshAll();
     } catch (err) {
-      statusEl.textContent = '';
-      statusEl.style.display = 'none';
       toast('Generate failed: ' + err.message, 'error');
+    } finally {
+      statusEl.style.display = 'none';
+      statusEl.textContent   = '';
     }
   }
 
@@ -833,6 +848,8 @@
   function closePdfOverlay() {
     if (_pdfES) { _pdfES.close(); _pdfES = null; }
     document.getElementById('pdf-overlay').style.display = 'none';
+    const manualLink = document.getElementById('pdf-manual-link');
+    if (manualLink) { manualLink.style.display = 'none'; manualLink.href = '#'; }
     const bar = document.getElementById('pdf-prog-bar');
     bar.style.width = '0%';
     bar.style.background = '#B81F24';
@@ -940,8 +957,12 @@
       const filename = sections > 1
         ? `${batchCode}-part-${s + 1}-of-${sections}.pdf`
         : `${batchCode}-stickers.pdf`;
+      const dlUrl = `/admin/pdf/download/${jobId}`;
+      // Show fallback link first so user can click manually if auto-download is blocked
+      const manualLink = document.getElementById('pdf-manual-link');
+      if (manualLink) { manualLink.href = dlUrl; manualLink.download = filename; manualLink.style.display = 'block'; }
       const a = document.createElement('a');
-      a.href     = `/admin/pdf/download/${jobId}`;
+      a.href     = dlUrl;
       a.download = filename;
       document.body.appendChild(a); a.click(); a.remove();
 
