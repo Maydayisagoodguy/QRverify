@@ -668,7 +668,37 @@ async function getSerialNetworkData(batchCode) {
     .sort((a, b) => (a.seq ?? 999999) - (b.seq ?? 999999));
 }
 
-async function getMapData(limit = 500) {
+async function getMapData(limit = 500, batchCode = null) {
+  if (batchCode) {
+    // Fetch all serials for this batch first
+    const { data: prods, error: pe } = await db
+      .from('products')
+      .select('serial, product_name')
+      .eq('batch_code', batchCode);
+    if (pe) throw pe;
+    const prodList = prods || [];
+    if (!prodList.length) return [];
+
+    const serials = prodList.map(p => p.serial);
+    const prodMap = Object.fromEntries(prodList.map(p => [p.serial, p]));
+
+    // No limit — fetch ALL geo scan_logs for this batch's serials
+    const { data, error } = await db
+      .from('scan_logs')
+      .select('serial, lat, lng, result, country, city, scanned_at')
+      .in('serial', serials)
+      .not('lat', 'is', null)
+      .order('scanned_at', { ascending: false });
+    if (error) throw error;
+
+    return (data || []).map(r => ({
+      ...r,
+      product_name: prodMap[r.serial]?.product_name || null,
+      batch_code:   batchCode,
+    }));
+  }
+
+  // Global fetch — last N scans across all batches
   const { data, error } = await db
     .from('scan_logs')
     .select('serial, lat, lng, result, country, city, scanned_at')

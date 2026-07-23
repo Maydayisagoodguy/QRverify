@@ -10,8 +10,8 @@ module.exports = async function analyticsRoutes(fastify) {
   });
 
   fastify.get('/analytics/map-data', { preHandler: [adminRateLimit] }, async (request) => {
-    const { limit = '500' } = request.query;
-    return db.getMapData(Math.min(parseInt(limit, 10) || 500, 2000));
+    const { limit = '500', batch = '' } = request.query;
+    return db.getMapData(Math.min(parseInt(limit, 10) || 500, 2000), batch || null);
   });
 
   fastify.get('/analytics/geo', { preHandler: [adminRateLimit] }, async () => {

@@ -1968,25 +1968,36 @@
     }
 
     // ── Batch context on dashboard ─────────────────────────────────
-    let _globalStats = null; // cache overall stats to restore on clear
+    let _globalStats   = null; // cache overall stats to restore on clear
+    let _globalMapData = null; // cache global map points to restore on clear
 
     async function onMapBatchChange() {
       const sel = document.getElementById('map-filter-batch');
       const code = sel ? sel.value : '';
       closeMapPanel();
-      renderMapMarkers(currentMapFilter);
 
       if (!code) {
         clearBatchContext();
         return;
       }
 
-      // Show context strip
+      // Show context strip immediately
       document.getElementById('batch-context-strip').style.display = 'flex';
       document.getElementById('batch-context-code').textContent = code;
 
       try {
-        const { stats } = await api(`/admin/batches/${encodeURIComponent(code)}`);
+        // Fetch batch stats + ALL map data for this batch in parallel
+        const [batchRes, batchMapData] = await Promise.all([
+          api(`/admin/batches/${encodeURIComponent(code)}`),
+          api(`/admin/analytics/map-data?batch=${encodeURIComponent(code)}`),
+        ]);
+        const { stats } = batchRes;
+
+        // Save global map data once, then switch to batch-specific data
+        if (!_globalMapData) _globalMapData = mapData;
+        mapData = batchMapData;
+        renderMapMarkers(currentMapFilter);
+
         if (!_globalStats) {
           _globalStats = {
             total:    document.getElementById('stat-total').textContent,
@@ -2030,6 +2041,11 @@
       document.getElementById('dash-batch-context').style.display = 'none';
       document.getElementById('batch-context-strip').style.display = 'none';
       document.getElementById('dashboard-title').textContent = 'Dashboard';
+      // Restore global map data then re-render
+      if (_globalMapData) {
+        mapData = _globalMapData;
+        _globalMapData = null;
+      }
       renderMapMarkers(currentMapFilter);
       // Restore global stats
       if (_globalStats) {
