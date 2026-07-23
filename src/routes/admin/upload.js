@@ -91,8 +91,13 @@ module.exports = async function uploadRoutes(fastify) {
     preHandler: [adminRateLimit],
   }, async (request, reply) => {
     const { code } = request.params;
-    const products = await db.getBatchProductsForExport(code);
-    if (!products.length) {
+    let products;
+    try {
+      products = await db.getBatchProductsForExport(code);
+    } catch (err) {
+      return reply.code(500).send({ error: 'Database error', code: 'DB_ERROR' });
+    }
+    if (!products || !products.length) {
       return reply.code(404).send({ error: 'Batch not found or empty', code: 'NOT_FOUND' });
     }
 

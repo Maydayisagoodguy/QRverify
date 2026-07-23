@@ -478,6 +478,21 @@
 
 <div class="toast-wrap" id="toast-wrap"></div>
 
+<!-- PDF progress overlay -->
+<div id="pdf-overlay" style="display:none;position:fixed;bottom:24px;right:24px;z-index:9999;
+  background:#fff;border:1px solid #E4E4E7;border-radius:12px;
+  box-shadow:0 8px 32px rgba(0,0,0,0.14);padding:20px 24px;width:320px;">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+    <span id="pdf-overlay-title" style="font-size:13px;font-weight:700;color:#09090B;">Generating PDF…</span>
+    <button onclick="closePdfOverlay()" style="background:none;border:none;font-size:18px;cursor:pointer;color:#A1A1AA;line-height:1;">✕</button>
+  </div>
+  <div id="pdf-prog-count" style="font-size:22px;font-weight:700;color:#09090B;margin-bottom:10px;font-variant-numeric:tabular-nums;">0 / 0</div>
+  <div style="height:8px;background:#F4F4F5;border-radius:99px;overflow:hidden;margin-bottom:8px;">
+    <div id="pdf-prog-bar" style="height:100%;width:0%;background:#B81F24;border-radius:99px;transition:width 0.3s ease;"></div>
+  </div>
+  <div id="pdf-prog-eta" style="font-size:11px;color:#A1A1AA;">Starting…</div>
+</div>
+
 <script>
   const batchCode = decodeURIComponent(window.location.pathname.split('/').pop());
   let _batchScanLimit  = null;
@@ -810,9 +825,97 @@
     }
   }
 
-  function downloadZip() {
-    const url = `/admin/batches/${encodeURIComponent(batchCode)}/export`;
-    window.location.href = url;
+  let _pdfES = null;
+  let _pdfStartTime = null;
+
+  function closePdfOverlay() {
+    if (_pdfES) { _pdfES.close(); _pdfES = null; }
+    document.getElementById('pdf-overlay').style.display = 'none';
+    const bar = document.getElementById('pdf-prog-bar');
+    bar.style.width = '0%';
+    bar.style.background = '#B81F24';
+    const btn = document.querySelector('.btn-primary.btn-sm');
+    if (btn) { btn.disabled = false; btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download PDF Stickers`; }
+  }
+
+  async function downloadZip() {
+    const btn = document.querySelector('.btn-primary.btn-sm');
+    if (btn) { btn.disabled = true; btn.textContent = 'Starting…'; }
+
+    let res;
+    try {
+      const r = await fetch(`/admin/pdf/start/${encodeURIComponent(batchCode)}`, { method: 'POST' });
+      if (!r.ok) { const e = await r.json(); throw new Error(e.error || 'Failed to start'); }
+      res = await r.json();
+    } catch (err) {
+      if (btn) { btn.disabled = false; btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download PDF Stickers`; }
+      toast('Failed: ' + err.message, 'error');
+      return;
+    }
+
+    const { jobId, total } = res;
+
+    // Show overlay
+    const overlay = document.getElementById('pdf-overlay');
+    overlay.style.display = 'block';
+    document.getElementById('pdf-overlay-title').textContent = 'Generating PDF…';
+    document.getElementById('pdf-prog-count').textContent = `0 / ${total.toLocaleString()} QR codes`;
+    document.getElementById('pdf-prog-eta').textContent = 'Starting…';
+    document.getElementById('pdf-prog-bar').style.width = '0%';
+    document.getElementById('pdf-prog-bar').style.background = '#B81F24';
+
+    _pdfStartTime = Date.now();
+
+    if (_pdfES) _pdfES.close();
+    const es = new EventSource(`/admin/pdf/progress/${jobId}`);
+    _pdfES = es;
+
+    es.onmessage = (e) => {
+      const data = JSON.parse(e.data);
+
+      if (data.type === 'progress') {
+        const pct = data.total > 0 ? (data.done / data.total) * 100 : 0;
+        document.getElementById('pdf-prog-bar').style.width = pct + '%';
+        document.getElementById('pdf-prog-count').textContent = `${data.done.toLocaleString()} / ${data.total.toLocaleString()} QR codes`;
+        const elapsed = (Date.now() - _pdfStartTime) / 1000;
+        if (data.done > 0 && elapsed > 1) {
+          const rate = data.done / elapsed;
+          const secsLeft = (data.total - data.done) / rate;
+          const eta = secsLeft < 60 ? `~${Math.ceil(secsLeft)}s remaining` : `~${Math.ceil(secsLeft / 60)}m remaining`;
+          document.getElementById('pdf-prog-eta').textContent = `${Math.round(pct)}% · ${eta}`;
+        }
+
+      } else if (data.type === 'done') {
+        es.close(); _pdfES = null;
+        document.getElementById('pdf-prog-bar').style.width = '100%';
+        document.getElementById('pdf-prog-bar').style.background = '#16A34A';
+        document.getElementById('pdf-overlay-title').textContent = 'PDF Ready — Downloading…';
+        document.getElementById('pdf-prog-count').textContent = `${total.toLocaleString()} / ${total.toLocaleString()} QR codes`;
+        document.getElementById('pdf-prog-eta').textContent = 'Complete';
+        // Trigger download
+        const a = document.createElement('a');
+        a.href = `/admin/pdf/download/${data.jobId}`;
+        a.download = `${batchCode}-stickers.pdf`;
+        document.body.appendChild(a); a.click(); a.remove();
+        if (btn) { btn.disabled = false; btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download PDF Stickers`; }
+        setTimeout(closePdfOverlay, 3000);
+
+      } else if (data.type === 'error') {
+        es.close(); _pdfES = null;
+        document.getElementById('pdf-prog-bar').style.background = '#EF4444';
+        document.getElementById('pdf-overlay-title').textContent = 'Generation Failed';
+        document.getElementById('pdf-prog-eta').textContent = data.message;
+        if (btn) { btn.disabled = false; btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download PDF Stickers`; }
+        toast('PDF generation failed: ' + data.message, 'error');
+      }
+    };
+
+    es.onerror = () => {
+      if (es.readyState === EventSource.CLOSED) return;
+      es.close(); _pdfES = null;
+      document.getElementById('pdf-prog-eta').textContent = 'Connection lost — try again';
+      if (btn) { btn.disabled = false; btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download PDF Stickers`; }
+    };
   }
 
   // ── Refresh all ────────────────────────────────────────────────────

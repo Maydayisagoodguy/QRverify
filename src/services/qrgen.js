@@ -184,28 +184,30 @@ function drawSticker(doc, sx, sy, product, qrBuf) {
   }
 }
 
-async function buildPDF(products) {
-  const BATCH = 20;
-  const items  = [];
-
-  for (let i = 0; i < products.length; i += BATCH) {
-    const chunk = products.slice(i, i + BATCH);
-    const bufs  = await Promise.all(
-      chunk.map(p => generateQRBuffer(buildURL(p.serial, p.hmac)))
-    );
-    bufs.forEach((buf, idx) => items.push({ product: chunk[idx], qrBuf: buf }));
-  }
-
+// onProgress(done, total) — called after every 10 stickers so caller can stream progress
+async function buildPDF(products, onProgress) {
   const doc    = new PDFDocument({ size: 'A4', margin: 0, autoFirstPage: true });
   const chunks = [];
+
   doc.on('data', c => chunks.push(c));
 
-  items.forEach(({ product, qrBuf }, i) => {
-    const pos = i % PER_PG;
+  // Generate one QR at a time and draw immediately — never buffers all images at once
+  // setImmediate yield every 10 keeps the Node event loop free for other requests
+  for (let i = 0; i < products.length; i++) {
+    const p     = products[i];
+    const qrBuf = await generateQRBuffer(buildURL(p.serial, p.hmac));
+    const pos   = i % PER_PG;
     if (i > 0 && pos === 0) doc.addPage();
-    const sy = STK_Y0 + pos * (STK_H + GAP);
-    drawSticker(doc, STK_X, sy, product, qrBuf);
-  });
+    drawSticker(doc, STK_X, STK_Y0 + pos * (STK_H + GAP), p, qrBuf);
+
+    if ((i + 1) % 10 === 0) {
+      if (onProgress) onProgress(i + 1, products.length);
+      await new Promise(r => setImmediate(r));
+    }
+  }
+
+  // Final progress tick for any remainder
+  if (onProgress) onProgress(products.length, products.length);
 
   return new Promise((resolve, reject) => {
     doc.on('end',   () => resolve(Buffer.concat(chunks)));

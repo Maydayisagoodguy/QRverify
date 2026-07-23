@@ -74,6 +74,7 @@ fastify.register(require('./routes/admin/serials'),    { prefix: '/admin' });
 fastify.register(require('./routes/admin/batches'),    { prefix: '/admin' });
 fastify.register(require('./routes/admin/scans'),      { prefix: '/admin' });
 fastify.register(require('./routes/admin/alerts'),     { prefix: '/admin' });
+fastify.register(require('./routes/admin/pdf'),        { prefix: '/admin' });
 fastify.register(require('./routes/admin/analytics'),  { prefix: '/admin' });
 fastify.register(require('./routes/admin/config'),     { prefix: '/admin' });
 
