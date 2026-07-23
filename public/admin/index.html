@@ -836,7 +836,7 @@
           <div class="map-card">
             <div class="card-header">
               <span class="card-title">Scan Map</span>
-              <span class="card-meta" id="map-count-label">Last 500 scans</span>
+              <span class="card-meta" id="map-count-label">Select a batch to view scans</span>
             </div>
             <div class="map-filter-bar">
               <button class="map-filter-btn active" data-filter="all">All</button>
@@ -964,6 +964,23 @@
             </a>
           </div>
         </div>
+        <!-- Filter bar: search + remark filter -->
+        <div class="filter-bar" style="margin-bottom:16px;">
+          <div style="position:relative;flex:1;min-width:200px;max-width:340px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text-muted);pointer-events:none;"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input type="text" id="batch-search" placeholder="Search batch code or product…" oninput="debounce(onBatchSearch, 400)()"
+              style="width:100%;height:36px;padding:0 12px 0 32px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;font-size:13px;outline:none;" autocomplete="off" />
+          </div>
+          <select id="batch-remark-filter" onchange="onBatchRemarkChange()"
+            style="height:36px;padding:0 12px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;font-size:13px;outline:none;min-width:180px;cursor:pointer;">
+            <option value="">All remarks</option>
+          </select>
+          <button id="batch-filter-clear" class="btn btn-ghost btn-sm" onclick="clearBatchFilters()" style="display:none;">✕ Clear</button>
+        </div>
+
+        <!-- Remark context strip — shown when a remark is selected -->
+        <div id="batch-remark-context" style="display:none;align-items:center;gap:8px;padding:10px 14px;background:rgba(99,102,241,0.06);border:1px solid rgba(99,102,241,0.18);border-radius:var(--radius-sm);margin-bottom:14px;font-size:12px;color:#6366F1;font-weight:600;"></div>
+
         <div class="table-card">
           <div class="table-wrap">
             <table>
@@ -984,6 +1001,14 @@
               </tbody>
             </table>
           </div>
+          <div id="batches-pagination" style="display:none;align-items:center;justify-content:space-between;padding:10px 20px;border-top:1px solid var(--border);">
+            <span id="batches-page-info" style="font-size:12px;color:var(--text-muted);"></span>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <button id="batches-prev-btn" class="btn btn-ghost btn-sm" onclick="batchesPrevPage()" disabled>← Prev</button>
+              <span id="batches-page-num" style="font-size:12px;color:var(--text-secondary);font-weight:600;"></span>
+              <button id="batches-next-btn" class="btn btn-ghost btn-sm" onclick="batchesNextPage()" disabled>Next →</button>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -1003,7 +1028,7 @@
             <div>
               <label style="font-size:11px;font-weight:600;color:#71717A;text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:5px;">Quantity *</label>
               <input id="gen-qty" type="number" placeholder="e.g. 1000" min="1" style="width:100%;height:36px;padding:0 12px;border:1px solid #E4E4E7;border-radius:6px;font-size:13px;font-family:inherit;"/>
-              <div style="font-size:11px;color:#A1A1AA;margin-top:4px;">Max 89,999 per batch code. For more, use a new batch code.</div>
+              <div style="font-size:11px;color:#A1A1AA;margin-top:4px;">Max 999,999 per batch code. For more, use a new batch code.</div>
             </div>
             <div>
               <label style="font-size:11px;font-weight:600;color:#71717A;text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:5px;">Product Name (optional)</label>
@@ -1049,7 +1074,9 @@
             <option value="fake">Fake</option>
             <option value="inactive">Recalled</option>
           </select>
-          <input type="text" id="scan-filter-batch" placeholder="Filter by batch…" oninput="debounce(loadScans, 500)()" />
+          <select id="scan-filter-batch" onchange="loadScans()" style="height:36px;padding:0 12px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;font-size:13px;outline:none;min-width:160px;cursor:pointer;">
+            <option value="">All batches</option>
+          </select>
           <input type="date" id="scan-filter-from" onchange="loadScans()" />
           <input type="date" id="scan-filter-to"   onchange="loadScans()" />
           <button class="btn btn-ghost btn-sm" onclick="clearScanFilters()">Clear</button>
@@ -1060,12 +1087,12 @@
               <thead>
                 <tr>
                   <th>Product</th>
-                  <th>Serial</th>
-                  <th>Result</th>
+                  <th class="sortable" onclick="setScanSort('serial')" style="cursor:pointer;user-select:none;">Serial <span id="scan-sort-serial" class="sort-arrow"></span></th>
+                  <th class="sortable" onclick="setScanSort('result')" style="cursor:pointer;user-select:none;">Result <span id="scan-sort-result" class="sort-arrow"></span></th>
                   <th>IP Address</th>
-                  <th>Country</th>
+                  <th class="sortable" onclick="setScanSort('country')" style="cursor:pointer;user-select:none;">Country <span id="scan-sort-country" class="sort-arrow"></span></th>
                   <th>City</th>
-                  <th>Time</th>
+                  <th class="sortable" onclick="setScanSort('scanned_at')" style="cursor:pointer;user-select:none;">Time <span id="scan-sort-scanned_at" class="sort-arrow">↓</span></th>
                 </tr>
               </thead>
               <tbody id="scans-body">
@@ -1287,7 +1314,8 @@
 
     // ── Init ───────────────────────────────────────────────────────
     function init() {
-      loadAnalytics();
+      loadAlertBadge();
+      loadBatchDropdowns();  // populate batch dropdowns across all sections
       // Honour any hash from sidebar links on other pages (e.g. batch-detail)
       const hash = window.location.hash.replace('#', '');
       if (['dashboard','batches','scans','alerts','network','limits'].includes(hash)) {
@@ -1372,21 +1400,14 @@
       closeMapPanel();
       currentMapFilter = 'all';
       selectedCountry  = null;
-      _globalStats     = null;
 
       // Reset map status filter buttons (All → active)
       document.querySelectorAll('.map-filter-btn[data-filter]').forEach(b =>
         b.classList.toggle('active', b.dataset.filter === 'all')
       );
 
-      // Reset geo country highlights
-      document.querySelectorAll('#geo-body tr').forEach(tr => tr.style.background = '');
-
-      // Reset map count label
-      const label = document.getElementById('map-count-label');
-      if (label) label.textContent = 'Last 500 scans';
-
-      loadAnalytics();
+      loadAlertBadge();
+      loadBatchDropdowns();
       loadedSections.clear();
       if (activeSection === 'dashboard') loadDashboard();
       if (activeSection === 'batches')  loadBatches();
@@ -1397,28 +1418,10 @@
     }
 
     // ── Analytics ──────────────────────────────────────────────────
-    async function loadAnalytics() {
+    // Sidebar alert badge only — the dashboard itself is batch-driven (see loadDashboard)
+    async function loadAlertBadge() {
       try {
         const d = await api('/admin/analytics');
-        document.getElementById('stat-total').textContent    = fmt(d.total);
-        document.getElementById('stat-verified').textContent = fmt(d.verified);
-        document.getElementById('stat-warning').textContent  = fmt(d.warning);
-        document.getElementById('stat-fake').textContent     = fmt(d.fake);
-        document.getElementById('stat-alerts').textContent   = fmt(d.activeAlerts);
-
-        // Fraud Rate — (warnings + fake) / total
-        const fraudEl  = document.getElementById('stat-fraud-rate');
-        const fraudSub = document.getElementById('stat-fraud-sub');
-        if (d.total > 0) {
-          const rate = ((d.warning + d.fake) / d.total * 100);
-          fraudEl.textContent = rate.toFixed(1) + '%';
-          fraudEl.className   = 'stat-value ' + (rate < 5 ? 'green' : rate < 15 ? 'amber' : 'red');
-          fraudSub.textContent = `${fmt(d.warning + d.fake)} of ${fmt(d.total)} scans`;
-        } else {
-          fraudEl.textContent = '0%';
-          fraudEl.className   = 'stat-value green';
-        }
-
         const badge = document.getElementById('alert-badge');
         if (d.activeAlerts > 0) {
           badge.textContent = d.activeAlerts > 99 ? '99+' : d.activeAlerts;
@@ -1430,13 +1433,30 @@
     }
 
     // ── Dashboard data ─────────────────────────────────────────────
+    // Fully batch-driven: nothing renders until the admin picks a batch above.
     async function loadDashboard() {
-      // Pre-load batch codes so map + alert dropdowns work from dashboard
-      try {
-        const batches = await api('/admin/batches');
-        populateBatchDropdowns(batches.map(b => b.batch_code));
-      } catch (_) {}
-      await Promise.all([loadRecentScans(), loadMap(), loadGeoTable()]);
+      initMapContainer();
+      showDashboardEmpty();
+    }
+
+    // Empty/placeholder state shown when no batch is selected
+    function showDashboardEmpty() {
+      ['stat-total','stat-verified','stat-warning','stat-fake','stat-alerts','stat-fraud-rate'].forEach(id => {
+        const el = document.getElementById(id); if (el) el.textContent = '—';
+      });
+      const fraudEl = document.getElementById('stat-fraud-rate'); if (fraudEl) fraudEl.className = 'stat-value';
+      const fraudSub = document.getElementById('stat-fraud-sub'); if (fraudSub) fraudSub.textContent = 'Warnings + fake / total';
+      const firstSub = document.querySelectorAll('.stat-card .stat-sub')[0]; if (firstSub) firstSub.textContent = 'Select a batch';
+      const label = document.getElementById('map-count-label'); if (label) label.textContent = 'Select a batch to view scans';
+
+      if (clusterLayer && mapInstance) { mapInstance.removeLayer(clusterLayer); clusterLayer = null; }
+      if (mapInstance) mapInstance.setView([20, 0], 2);
+
+      const geo = document.getElementById('geo-body');
+      if (geo) geo.innerHTML = `<tr><td colspan="6">${emptyState('Select a batch', 'Choose a batch above to see its geographic breakdown.')}</td></tr>`;
+      const geoCount = document.getElementById('geo-country-count'); if (geoCount) geoCount.textContent = '';
+      const recent = document.getElementById('recent-scans-body');
+      if (recent) recent.innerHTML = `<tr><td colspan="5">${emptyState('Select a batch', 'Choose a batch above to see its recent scans.')}</td></tr>`;
     }
 
     // ── Network Intelligence ───────────────────────────────────────
@@ -1620,12 +1640,14 @@
       if (chevron) chevron.style.transform = open ? '' : 'rotate(180deg)';
     }
 
-    async function loadGeoTable() {
+    async function loadGeoTable(batchCode) {
       const body = document.getElementById('geo-body');
       try {
-        const rows = await api('/admin/analytics/geo');
+        const qs = batchCode ? `?batch=${encodeURIComponent(batchCode)}` : '';
+        const rows = await api('/admin/analytics/geo' + qs);
         if (!rows.length) {
-          body.innerHTML = `<tr><td colspan="6">${emptyState('No location data', 'Scans will appear here once QR codes are distributed.')}</td></tr>`;
+          body.innerHTML = `<tr><td colspan="6">${emptyState('No location data', 'No location data recorded for this batch yet.')}</td></tr>`;
+          document.getElementById('geo-country-count').textContent = '';
           return;
         }
 
@@ -1697,38 +1719,33 @@
       }
     }
 
-    async function loadMap() {
+    // Create the Leaflet map container without loading any data — markers are only
+    // rendered once a batch is selected (batch-driven dashboard).
+    function initMapContainer() {
       if (!document.getElementById('scan-map')) return;
-      try {
-        const data = await api('/admin/analytics/map-data');
-        mapData = data;
+      if (!mapInstance) {
+        mapInstance = L.map('scan-map', {
+          zoomControl: true,
+          attributionControl: false,
+          minZoom: 2,
+          maxZoom: 16,
+          maxBounds: [[-85, -180], [85, 180]],
+          maxBoundsViscosity: 1.0,
+        }).setView([20, 0], 2);
 
-        if (!mapInstance) {
-          mapInstance = L.map('scan-map', {
-            zoomControl: true,
-            attributionControl: false,
-            minZoom: 2,
-            maxZoom: 16,
-            maxBounds: [[-85, -180], [85, 180]],
-            maxBoundsViscosity: 1.0,
-          }).setView([20, 0], 2);
-
-          L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {
-            attribution: '© OpenStreetMap © CartoDB',
-            subdomains: 'abcd',
-            noWrap: true,
-          }).addTo(mapInstance);
-          // Labels layer rendered on top of base but below scan dots
-          L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png', {
-            subdomains: 'abcd',
-            noWrap: true,
-          }).addTo(mapInstance);
-        }
-
-        renderMapMarkers(currentMapFilter);
-        // Force Leaflet to recalculate container size after grid layout settles
-        setTimeout(() => mapInstance && mapInstance.invalidateSize(), 150);
-      } catch {}
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {
+          attribution: '© OpenStreetMap © CartoDB',
+          subdomains: 'abcd',
+          noWrap: true,
+        }).addTo(mapInstance);
+        // Labels layer rendered on top of base but below scan dots
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png', {
+          subdomains: 'abcd',
+          noWrap: true,
+        }).addTo(mapInstance);
+      }
+      // Force Leaflet to recalculate container size after grid layout settles
+      setTimeout(() => mapInstance && mapInstance.invalidateSize(), 150);
     }
 
     function renderMapMarkers(filter) {
@@ -1938,52 +1955,182 @@
     }
 
     // ── Batches ────────────────────────────────────────────────────
+    const BATCHES_LIMIT = 20;
+    let _batchesPage    = 1;
+    let _batchesPages   = 1;
+    let _batchesTotal   = 0;
+    let _batchSearch    = '';
+    let _remarksSummary = [];
+    let _remarksLoaded  = false;
+    let _activeRemark   = null;
+
+    // Entry point (section switch / refresh) — resets to page 1 and reloads remark options
     async function loadBatches() {
-      const body = document.getElementById('batches-body');
+      _batchesPage = 1;
+      loadBatchDropdowns();  // keep shared batch dropdowns fresh (e.g. after generate/recall)
+      await ensureRemarkOptions(true);
+      if (_activeRemark) renderRemarkBatches();
+      else               await fetchBatchesPage();
+    }
+
+    async function ensureRemarkOptions(force = false) {
+      if (_remarksLoaded && !force) return;
       try {
-        const batches = await api('/admin/batches');
-        if (!batches.length) {
-          body.innerHTML = `<tr><td colspan="8">${emptyState('No batches', 'Generate QR codes or upload an Excel file to get started.')}</td></tr>`;
+        _remarksSummary = await api('/admin/remarks-summary');
+        _remarksLoaded  = true;
+        const sel = document.getElementById('batch-remark-filter');
+        const current = sel.value;
+        while (sel.options.length > 1) sel.remove(1);
+        for (const r of _remarksSummary) {
+          const opt = document.createElement('option');
+          opt.value = r.remark;
+          opt.textContent = `${r.remark} (${r.total})`;
+          sel.appendChild(opt);
+        }
+        // Preserve selection if it still exists
+        if (current && _remarksSummary.some(r => r.remark === current)) sel.value = current;
+        else if (current) { _activeRemark = null; }
+      } catch (_) {}
+    }
+
+    function batchRowHTML(b) {
+      const statusBadge = b.active === b.total
+        ? '<span class="badge badge-verified">Active</span>'
+        : b.active === 0
+          ? '<span class="badge badge-inactive">Recalled</span>'
+          : '<span class="badge badge-warning">Partial</span>';
+      return `
+      <tr style="cursor:pointer;" onclick="openBatch('${esc(b.batch_code)}')">
+        <td class="mono" style="font-weight:600;color:var(--accent);">${esc(b.batch_code)}</td>
+        <td style="font-weight:500;color:var(--text-primary);">${esc(b.product_name || '—')}</td>
+        <td>${fmt(b.total)}</td>
+        <td style="font-weight:600;">${fmt(b.scans || 0)}</td>
+        <td style="color:var(--text-muted);">${esc(b.target_country || '—')}</td>
+        <td>${statusBadge}</td>
+        <td style="color:var(--text-muted);">${fmtDate(b.created_at)}</td>
+        <td onclick="event.stopPropagation()">
+          <div class="batch-actions">
+            <button class="btn btn-ghost btn-sm" onclick="downloadZip('${esc(b.batch_code)}')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              Labels
+            </button>
+            <button class="btn btn-danger-soft btn-sm" onclick="recallBatch('${esc(b.batch_code)}', this)">Recall</button>
+          </div>
+        </td>
+      </tr>`;
+    }
+
+    async function fetchBatchesPage() {
+      const body = document.getElementById('batches-body');
+      body.innerHTML = `<tr class="loading-row"><td colspan="8"><div class="spinner" style="margin:0 auto;"></div></td></tr>`;
+      try {
+        const params = new URLSearchParams({ page: String(_batchesPage), limit: String(BATCHES_LIMIT) });
+        if (_batchSearch) params.set('search', _batchSearch);
+        const { rows, total, pages } = await api(`/admin/batches/page?${params}`);
+        _batchesTotal = total; _batchesPages = pages || 1;
+        updateBatchesPagination();
+        if (!rows.length) {
+          body.innerHTML = `<tr><td colspan="8">${emptyState(_batchSearch ? 'No matching batches' : 'No batches', _batchSearch ? 'Try a different search term.' : 'Generate QR codes or upload an Excel file to get started.')}</td></tr>`;
           return;
         }
-        // Populate batch filter dropdowns in other sections
-        populateBatchDropdowns(batches.map(b => b.batch_code));
-
-        body.innerHTML = batches.map(b => {
-          const statusBadge = b.active === b.total
-            ? '<span class="badge badge-verified">Active</span>'
-            : b.active === 0
-              ? '<span class="badge badge-inactive">Recalled</span>'
-              : '<span class="badge badge-warning">Partial</span>';
-          return `
-          <tr style="cursor:pointer;" onclick="openBatch('${esc(b.batch_code)}')">
-            <td class="mono" style="font-weight:600;color:var(--accent);">${esc(b.batch_code)}</td>
-            <td style="font-weight:500;color:var(--text-primary);">${esc(b.product_name || '—')}</td>
-            <td>${fmt(b.total)}</td>
-            <td style="font-weight:600;">${fmt(b.scans || 0)}</td>
-            <td style="color:var(--text-muted);">${esc(b.target_country || '—')}</td>
-            <td>${statusBadge}</td>
-            <td style="color:var(--text-muted);">${fmtDate(b.created_at)}</td>
-            <td onclick="event.stopPropagation()">
-              <div class="batch-actions">
-                <button class="btn btn-ghost btn-sm" onclick="downloadZip('${esc(b.batch_code)}')">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                  Labels
-                </button>
-                <button class="btn btn-danger-soft btn-sm" onclick="recallBatch('${esc(b.batch_code)}', this)">Recall</button>
-              </div>
-            </td>
-          </tr>`;
-        }).join('');
+        body.innerHTML = rows.map(batchRowHTML).join('');
       } catch {
         body.innerHTML = `<tr><td colspan="8" style="padding:24px;text-align:center;color:var(--text-muted);font-size:13px;">Failed to load batches.</td></tr>`;
       }
     }
 
-    // ── Batch context on dashboard ─────────────────────────────────
-    let _globalStats   = null; // cache overall stats to restore on clear
-    let _globalMapData = null; // cache global map points to restore on clear
+    function renderRemarkBatches() {
+      const body = document.getElementById('batches-body');
+      const ctx  = document.getElementById('batch-remark-context');
+      updateBatchesPagination();
+      const entry = _remarksSummary.find(r => r.remark === _activeRemark);
+      if (!entry || !entry.batches.length) {
+        ctx.style.display = 'none';
+        body.innerHTML = `<tr><td colspan="8">${emptyState('No serials with this remark', 'This remark is no longer assigned to any serials.')}</td></tr>`;
+        return;
+      }
+      ctx.style.display = 'flex';
+      ctx.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M4 6h16M7 12h10M10 18h4"/></svg>
+        Remark <span style="font-weight:800;">"${esc(_activeRemark)}"</span> · ${fmt(entry.total)} serial${entry.total === 1 ? '' : 's'} across ${entry.batches.length} batch${entry.batches.length === 1 ? '' : 'es'} — click a batch to view its serials with this remark applied.`;
+      body.innerHTML = entry.batches.map(b => `
+        <tr style="cursor:pointer;" onclick="openBatchWithRemark('${esc(b.batch_code)}')">
+          <td colspan="8" style="padding:12px 16px;">
+            <div style="display:flex;align-items:center;gap:14px;">
+              <span class="mono" style="font-weight:700;color:var(--accent);font-size:13px;">${esc(b.batch_code)}</span>
+              <span style="color:var(--text-primary);font-weight:500;">${esc(b.product_name || '—')}</span>
+              <span style="margin-left:auto;display:inline-flex;align-items:center;gap:5px;background:rgba(99,102,241,0.08);color:#6366F1;border:1px solid rgba(99,102,241,0.2);font-size:12px;font-weight:700;padding:3px 10px;border-radius:6px;">${fmt(b.count)} serial${b.count === 1 ? '' : 's'}</span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--text-muted);flex-shrink:0;"><polyline points="9 18 15 12 9 6"/></svg>
+            </div>
+          </td>
+        </tr>`).join('');
+    }
 
+    function openBatchWithRemark(code) {
+      window.location.href = `/admin/batch/${encodeURIComponent(code)}?remark=${encodeURIComponent(_activeRemark)}`;
+    }
+
+    function updateBatchesPagination() {
+      const pg = document.getElementById('batches-pagination');
+      if (_activeRemark || _batchesTotal === 0) { pg.style.display = 'none'; return; }
+      pg.style.display = 'flex';
+      const from = (_batchesPage - 1) * BATCHES_LIMIT + 1;
+      const to   = Math.min(_batchesPage * BATCHES_LIMIT, _batchesTotal);
+      document.getElementById('batches-page-info').textContent = `Showing ${fmt(from)}–${fmt(to)} of ${fmt(_batchesTotal)} batch${_batchesTotal === 1 ? '' : 'es'}`;
+      document.getElementById('batches-page-num').textContent  = `Page ${_batchesPage} of ${_batchesPages}`;
+      document.getElementById('batches-prev-btn').disabled = _batchesPage <= 1;
+      document.getElementById('batches-next-btn').disabled = _batchesPage >= _batchesPages;
+    }
+
+    function batchesPrevPage() { if (_batchesPage > 1)            { _batchesPage--; fetchBatchesPage(); } }
+    function batchesNextPage() { if (_batchesPage < _batchesPages) { _batchesPage++; fetchBatchesPage(); } }
+
+    function onBatchSearch() {
+      _batchSearch = document.getElementById('batch-search').value.trim();
+      // Search operates on the full batch list — leaving remark mode if active
+      if (_activeRemark) {
+        _activeRemark = null;
+        document.getElementById('batch-remark-filter').value = '';
+        document.getElementById('batch-remark-context').style.display = 'none';
+      }
+      document.getElementById('batch-filter-clear').style.display = (_batchSearch) ? '' : 'none';
+      _batchesPage = 1;
+      fetchBatchesPage();
+    }
+
+    function onBatchRemarkChange() {
+      _activeRemark = document.getElementById('batch-remark-filter').value || null;
+      document.getElementById('batch-filter-clear').style.display = (_activeRemark || _batchSearch) ? '' : 'none';
+      if (_activeRemark) {
+        // Remark mode takes over — clear any active search
+        _batchSearch = '';
+        document.getElementById('batch-search').value = '';
+        renderRemarkBatches();
+      } else {
+        document.getElementById('batch-remark-context').style.display = 'none';
+        _batchesPage = 1;
+        fetchBatchesPage();
+      }
+    }
+
+    function clearBatchFilters() {
+      _batchSearch  = '';
+      _activeRemark = null;
+      document.getElementById('batch-search').value = '';
+      document.getElementById('batch-remark-filter').value = '';
+      document.getElementById('batch-remark-context').style.display = 'none';
+      document.getElementById('batch-filter-clear').style.display = 'none';
+      _batchesPage = 1;
+      fetchBatchesPage();
+    }
+
+    async function loadBatchDropdowns() {
+      try {
+        const batches = await api('/admin/batches');
+        populateBatchDropdowns(batches.map(b => b.batch_code));
+      } catch (_) {}
+    }
+
+    // ── Batch context on dashboard ─────────────────────────────────
     async function onMapBatchChange() {
       const sel = document.getElementById('map-filter-batch');
       const code = sel ? sel.value : '';
@@ -2006,22 +2153,9 @@
         ]);
         const { stats } = batchRes;
 
-        // Save global map data once, then switch to batch-specific data
-        if (!_globalMapData) _globalMapData = mapData;
-        mapData = batchMapData;
+        mapData         = batchMapData;
+        selectedCountry = null;
         renderMapMarkers(currentMapFilter);
-
-        if (!_globalStats) {
-          _globalStats = {
-            total:    document.getElementById('stat-total').textContent,
-            verified: document.getElementById('stat-verified').textContent,
-            warning:  document.getElementById('stat-warning').textContent,
-            fake:     document.getElementById('stat-fake').textContent,
-            alerts:   document.getElementById('stat-alerts').textContent,
-            fraud:    document.getElementById('stat-fraud-rate').textContent,
-            fraudSub: document.getElementById('stat-fraud-sub').textContent,
-          };
-        }
 
         const fraudCount = (stats.warning || 0) + (stats.fake || 0);
         const fraudRate  = stats.totalScans > 0 ? (fraudCount / stats.totalScans * 100) : 0;
@@ -2042,6 +2176,7 @@
         document.getElementById('dashboard-title').textContent = code;
 
         loadRecentScans(code);
+        loadGeoTable(code);
       } catch (_) {}
     }
 
@@ -2054,25 +2189,9 @@
       document.getElementById('dash-batch-context').style.display = 'none';
       document.getElementById('batch-context-strip').style.display = 'none';
       document.getElementById('dashboard-title').textContent = 'Dashboard';
-      // Restore global map data then re-render
-      if (_globalMapData) {
-        mapData = _globalMapData;
-        _globalMapData = null;
-      }
-      renderMapMarkers(currentMapFilter);
-      // Restore global stats
-      if (_globalStats) {
-        document.getElementById('stat-total').textContent    = _globalStats.total;
-        document.getElementById('stat-verified').textContent = _globalStats.verified;
-        document.getElementById('stat-warning').textContent  = _globalStats.warning;
-        document.getElementById('stat-fake').textContent     = _globalStats.fake;
-        document.getElementById('stat-alerts').textContent   = _globalStats.alerts;
-        document.getElementById('stat-fraud-rate').textContent = _globalStats.fraud;
-        const fraudSub = document.getElementById('stat-fraud-sub');
-        if (fraudSub && _globalStats.fraudSub) fraudSub.textContent = _globalStats.fraudSub;
-        _globalStats = null;
-      }
-      loadRecentScans();
+      mapData         = [];
+      selectedCountry = null;
+      showDashboardEmpty();
     }
 
     function onDashBatchChange() {
@@ -2098,7 +2217,7 @@
     }
 
     function populateBatchDropdowns(codes) {
-      const targets = ['alert-filter-batch', 'map-filter-batch', 'dash-batch-select'];
+      const targets = ['alert-filter-batch', 'map-filter-batch', 'dash-batch-select', 'scan-filter-batch'];
       for (const id of targets) {
         const sel = document.getElementById(id);
         if (!sel) continue;
@@ -2257,16 +2376,37 @@
     }
 
     // ── Scans ──────────────────────────────────────────────────────
+    let _scanSort = 'scanned_at';
+    let _scanDir  = 'desc';
+
+    function setScanSort(col) {
+      if (_scanSort === col) {
+        _scanDir = _scanDir === 'asc' ? 'desc' : 'asc';
+      } else {
+        _scanSort = col;
+        _scanDir  = 'desc';
+      }
+      loadScans();
+    }
+
+    function updateScanSortArrows() {
+      for (const col of ['serial', 'result', 'country', 'scanned_at']) {
+        const el = document.getElementById(`scan-sort-${col}`);
+        if (el) el.textContent = (col === _scanSort) ? (_scanDir === 'asc' ? '↑' : '↓') : '';
+      }
+    }
+
     async function loadScans() {
       const body   = document.getElementById('scans-body');
       body.innerHTML = `<tr class="loading-row"><td colspan="6"><div class="spinner" style="margin:0 auto;"></div></td></tr>`;
+      updateScanSortArrows();
 
       const result = document.getElementById('scan-filter-result').value;
       const batch  = document.getElementById('scan-filter-batch').value;
       const from   = document.getElementById('scan-filter-from').value;
       const to     = document.getElementById('scan-filter-to').value;
 
-      const params = new URLSearchParams({ limit: '200' });
+      const params = new URLSearchParams({ limit: '200', sort: _scanSort, dir: _scanDir });
       if (result) params.set('result', result);
       if (batch)  params.set('batch', batch);
       if (from)   params.set('from', from);
@@ -2355,7 +2495,7 @@
         if (row) row.style.opacity = '0.4';
         btn.textContent = 'Resolved';
         toast('Alert resolved', 'success');
-        await loadAnalytics();
+        await loadAlertBadge();
       } catch {
         toast('Failed to resolve', 'error');
         btn.disabled = false;

@@ -85,6 +85,87 @@ async function getBatches() {
   }));
 }
 
+// Paginated batch list for the Batches page — avoids loading all batches at once.
+// Scan counts are computed only for the current page's rows (≤ limit COUNT queries).
+async function getBatchesPage({ page = 1, limit = 20, search = null } = {}) {
+  const offset = (Math.max(1, page) - 1) * limit;
+
+  let countQ = db.from('batches').select('*', { count: 'exact', head: true });
+  let dataQ  = db.from('batches')
+    .select('batch_code, product_name, total_units, active_units, created_at, status, target_country, scan_limit')
+    .order('created_at', { ascending: false })
+    .range(offset, offset + limit - 1);
+
+  if (search) {
+    // Strip characters that would break PostgREST's comma-delimited .or() syntax
+    const safe = String(search).replace(/[,()%]/g, ' ').trim();
+    if (safe) {
+      const term = `%${safe}%`;
+      const filter = `batch_code.ilike.${term},product_name.ilike.${term}`;
+      countQ = countQ.or(filter);
+      dataQ  = dataQ.or(filter);
+    }
+  }
+
+  const [countRes, dataRes] = await Promise.all([countQ, dataQ]);
+  if (dataRes.error) throw dataRes.error;
+
+  const rows  = dataRes.data || [];
+  const total = countRes.count ?? 0;
+  const pages = total > 0 ? Math.ceil(total / limit) : 1;
+
+  // Scan counts for this page's batches only — batch_code column, no serial join
+  const scanCount = {};
+  if (rows.length) {
+    const scanResults = await Promise.all(
+      rows.map(r =>
+        db.from('scan_logs')
+          .select('id', { count: 'exact', head: true })
+          .eq('batch_code', r.batch_code)
+      )
+    );
+    rows.forEach((r, i) => { scanCount[r.batch_code] = scanResults[i]?.count || 0; });
+  }
+
+  return {
+    rows: rows.map(r => ({
+      batch_code:     r.batch_code,
+      product_name:   r.product_name,
+      total:          r.total_units,
+      active:         r.active_units,
+      created_at:     r.created_at,
+      status:         r.status,
+      target_country: r.target_country || null,
+      scan_limit:     r.scan_limit ?? null,
+      scans:          scanCount[r.batch_code] || 0,
+    })),
+    total, page, pages,
+  };
+}
+
+// Distinct remarks across ALL batches, each with the batches that contain it and
+// how many serials in each. Uses a server-side aggregation RPC to stay efficient
+// at scale (no row-cap issue, single round-trip). Falls back to [] if RPC is absent.
+async function getRemarksSummary() {
+  const { data, error } = await db.rpc('get_remark_batch_summary');
+  if (error || !data) return [];
+
+  const map = new Map();
+  for (const row of data) {
+    if (!row.remark) continue;
+    if (!map.has(row.remark)) map.set(row.remark, { remark: row.remark, total: 0, batches: [] });
+    const entry = map.get(row.remark);
+    const cnt   = Number(row.cnt) || 0;
+    entry.total += cnt;
+    entry.batches.push({
+      batch_code:   row.batch_code,
+      product_name: row.product_name || null,
+      count:        cnt,
+    });
+  }
+  return [...map.values()].sort((a, b) => a.remark.localeCompare(b.remark));
+}
+
 async function getBatchById(batchCode) {
   const { data, error } = await db
     .from('batches')
@@ -491,11 +572,17 @@ async function getScanHistory(serial, limit = 50) {
   return data || [];
 }
 
-async function getScanLogs({ result, batchCode, from, to, limit = 100, offset = 0 }) {
+// Whitelist of sortable columns — prevents arbitrary column injection into .order()
+const SCAN_SORT_COLUMNS = { scanned_at: 'scanned_at', result: 'result', country: 'country', serial: 'serial' };
+
+async function getScanLogs({ result, batchCode, from, to, limit = 100, offset = 0, sort = 'scanned_at', dir = 'desc' }) {
+  const sortCol   = SCAN_SORT_COLUMNS[sort] || 'scanned_at';
+  const ascending = dir === 'asc';
+
   let q = db
     .from('scan_logs')
     .select('id, serial, scanned_at, ip, country, city, result, flag_reason, user_agent')
-    .order('scanned_at', { ascending: false })
+    .order(sortCol, { ascending })
     .range(offset, offset + limit - 1);
 
   if (result)    q = q.eq('result', result);
@@ -671,11 +758,13 @@ async function getISPSummary() {
   return Object.values(map).sort((a, b) => b.total - a.total);
 }
 
-async function getGeoSummary() {
-  const { data, error } = await db
+async function getGeoSummary(batchCode = null) {
+  let q = db
     .from('scan_logs')
     .select('country, result')
     .not('country', 'is', null);
+  if (batchCode) q = q.eq('batch_code', batchCode);
+  const { data, error } = await q;
   if (error) throw error;
 
   const map = {};
@@ -835,6 +924,8 @@ module.exports = {
   // Batches
   upsertBatch,
   getBatches,
+  getBatchesPage,
+  getRemarksSummary,
   getBatchById,
   setScanLimitForBatch,
   setScanLimitForRange,

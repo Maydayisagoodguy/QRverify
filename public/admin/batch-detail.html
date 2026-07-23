@@ -508,6 +508,8 @@
 
 <script>
   const batchCode = decodeURIComponent(window.location.pathname.split('/').pop());
+  const _urlRemark = new URLSearchParams(window.location.search).get('remark');
+  let _urlRemarkApplied = false;  // apply the URL remark filter only on first load
   let _batchScanLimit  = null;
   let _globalScanLimit = 1;
   let _serialPrefix    = '';   // first 4 chars of any serial in this batch (e.g. "FMAB")
@@ -622,11 +624,19 @@
     try {
       const remarks = await api(`/admin/batches/${encodeURIComponent(batchCode)}/remarks`);
       const sel = document.getElementById('remark-filter');
+      const current = sel.value;
       while (sel.options.length > 1) sel.remove(1);
       for (const r of remarks) {
         const opt = document.createElement('option');
         opt.value = r; opt.textContent = r;
         sel.appendChild(opt);
+      }
+      // Apply the remark passed via URL (from the Batches-page remark filter) once
+      if (!_urlRemarkApplied && _urlRemark && remarks.includes(_urlRemark)) {
+        sel.value = _urlRemark;
+        _urlRemarkApplied = true;
+      } else if (current && remarks.includes(current)) {
+        sel.value = current;
       }
     } catch (_) {}
   }
@@ -1053,9 +1063,11 @@
 
   // ── Refresh all ────────────────────────────────────────────────────
   async function refreshAll() {
-    const remarkFilter = document.getElementById('remark-filter').value;
     await loadGlobalLimit();
-    await Promise.all([loadBatchDetail(), loadSerials(remarkFilter || null), loadRemarkFilter(), loadSerialLimitGroups()]);
+    // Populate the remark dropdown first so a URL-supplied remark is applied before serials load
+    await loadRemarkFilter();
+    const activeRemark = document.getElementById('remark-filter').value || null;
+    await Promise.all([loadBatchDetail(), loadSerials(activeRemark), loadSerialLimitGroups()]);
   }
 
   // ── Init ───────────────────────────────────────────────────────────
