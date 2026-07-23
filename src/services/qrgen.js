@@ -68,19 +68,23 @@ function buildURL(serial, hmac) {
 
 // Draw QR code as PDF vector paths — same H error correction, ~100x faster than PNG encoding.
 // Eliminates per-QR async image rendering; makes large batches feasible on free Render.
+// MARGIN=2 matches the quiet zone the original PNG (margin:1) provided for reliable scanning.
 function drawQRVector(doc, url, x, y, size) {
   const qr      = QRCode.create(url, { errorCorrectionLevel: 'H' });
   const modules = qr.modules;
   const count   = modules.size;
-  const cell    = size / count;
+  const MARGIN  = 2;                         // quiet-zone modules
+  const cell    = size / (count + 2 * MARGIN);
+  const ox      = x + MARGIN * cell;
+  const oy      = y + MARGIN * cell;
 
   doc.save();
-  doc.rect(x, y, size, size).fill('#FFFFFF');
+  doc.rect(x, y, size, size).fill('#FFFFFF'); // white background incl. quiet zone
   doc.fillColor('#000000');
   for (let r = 0; r < count; r++) {
     for (let c = 0; c < count; c++) {
       if (modules.get(r, c)) {
-        doc.rect(x + c * cell, y + r * cell, cell, cell).fill();
+        doc.rect(ox + c * cell, oy + r * cell, cell, cell).fill();
       }
     }
   }
