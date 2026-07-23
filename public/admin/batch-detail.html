@@ -471,6 +471,14 @@
           </tbody>
         </table>
       </div>
+      <div id="serial-pagination" style="display:none;align-items:center;justify-content:space-between;padding:10px 20px;border-top:1px solid var(--border);background:var(--surface);border-radius:0 0 var(--radius-md) var(--radius-md);">
+        <span id="serial-page-info" style="font-size:12px;color:var(--text-muted);"></span>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <button id="serial-prev-btn" class="btn btn-ghost btn-sm" onclick="serialPrevPage()" disabled>← Prev</button>
+          <span id="serial-page-num" style="font-size:12px;color:var(--text-secondary);min-width:72px;text-align:center;"></span>
+          <button id="serial-next-btn" class="btn btn-ghost btn-sm" onclick="serialNextPage()" disabled>Next →</button>
+        </div>
+      </div>
     </div>
 
   </div><!-- /content -->
@@ -501,8 +509,15 @@
   const batchCode = decodeURIComponent(window.location.pathname.split('/').pop());
   let _batchScanLimit  = null;
   let _globalScanLimit = 1;
-  let _serialPrefix    = '';   // first 5 chars of any serial in this batch (prefix + batch tag)
+  let _serialPrefix    = '';   // first 4 chars of any serial in this batch (prefix + batch tag)
   let _batchTotal      = 0;    // total units in this batch (for PDF section logic)
+
+  // Pagination state for serial table
+  let _serialPage   = 1;
+  let _serialPages  = 1;
+  let _serialTotal  = 0;
+  let _serialRemark = null;
+  const SERIAL_LIMIT = 200;
 
   function seqToSerial(seq) {
     const n = parseInt(seq, 10);
@@ -613,15 +628,25 @@
     } catch (_) {}
   }
 
-  // ── Load serials ───────────────────────────────────────────────────
+  // ── Load serials (resets to page 1) ───────────────────────────────
   async function loadSerials(remarkFilter) {
+    _serialRemark = remarkFilter || null;
+    _serialPage   = 1;
+    await _fetchSerialPage();
+  }
+
+  async function _fetchSerialPage() {
     const tbody = document.getElementById('serial-tbody');
     tbody.innerHTML = '<tr class="loading-row"><td colspan="6"><div class="spinner"></div></td></tr>';
 
     try {
-      let url = `/admin/batches/${encodeURIComponent(batchCode)}/serials`;
-      if (remarkFilter) url += `?remark=${encodeURIComponent(remarkFilter)}`;
-      const rows = await api(url);
+      let url = `/admin/batches/${encodeURIComponent(batchCode)}/serials?page=${_serialPage}&limit=${SERIAL_LIMIT}`;
+      if (_serialRemark) url += `&remark=${encodeURIComponent(_serialRemark)}`;
+      const { rows, total, page, pages } = await api(url);
+
+      _serialTotal = total;
+      _serialPages = pages || 1;
+      _updateSerialPagination();
 
       if (!rows.length) {
         tbody.innerHTML = `<tr><td colspan="6">
@@ -675,6 +700,33 @@
       tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:32px;color:#DC2626;font-size:13px;">
         Error: ${esc(err.message)}</td></tr>`;
     }
+  }
+
+  function _updateSerialPagination() {
+    const pg   = document.getElementById('serial-pagination');
+    const info = document.getElementById('serial-page-info');
+    const num  = document.getElementById('serial-page-num');
+    const prev = document.getElementById('serial-prev-btn');
+    const next = document.getElementById('serial-next-btn');
+    if (!pg) return;
+
+    if (_serialTotal === 0) { pg.style.display = 'none'; return; }
+    pg.style.display = 'flex';
+
+    const from = (_serialPage - 1) * SERIAL_LIMIT + 1;
+    const to   = Math.min(_serialPage * SERIAL_LIMIT, _serialTotal);
+    info.textContent = `Showing ${from.toLocaleString()}–${to.toLocaleString()} of ${_serialTotal.toLocaleString()} serials`;
+    num.textContent  = `Page ${_serialPage} of ${_serialPages}`;
+    prev.disabled    = _serialPage <= 1;
+    next.disabled    = _serialPage >= _serialPages;
+  }
+
+  function serialPrevPage() {
+    if (_serialPage > 1) { _serialPage--; _fetchSerialPage(); }
+  }
+
+  function serialNextPage() {
+    if (_serialPage < _serialPages) { _serialPage++; _fetchSerialPage(); }
   }
 
   function filterByRemark() {

@@ -187,7 +187,7 @@ module.exports = async function verifyRoutes(fastify) {
 
     if (!isPrefetch) {
       // 8. Log this scan (non-blocking) — only for real user navigations
-      await safeLogScan({ serial, ip, country, city, lat, lng, userAgent, result, flagReason, isp: vpnInfo?.isp || null }, request.log);
+      await safeLogScan({ serial, ip, country, city, lat, lng, userAgent, result, flagReason, isp: vpnInfo?.isp || null, batchCode: product.batch_code }, request.log);
 
       // 9. Persist alerts + email on critical
       for (const a of alerts) {

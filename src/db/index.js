@@ -273,22 +273,32 @@ async function getMaxGlobalSeq() {
   return Math.max(data?.seq || 0, 1000000);
 }
 
-async function getSerialsByBatch(batchCode, { remarkFilter } = {}) {
-  let q = db
-    .from('products')
+async function getSerialsByBatch(batchCode, { remarkFilter, page = 1, limit = 200 } = {}) {
+  const offset = (Math.max(1, page) - 1) * limit;
+
+  // Count and data queries run in parallel
+  let countQ = db.from('products')
+    .select('*', { count: 'exact', head: true })
+    .eq('batch_code', batchCode);
+  if (remarkFilter) countQ = countQ.eq('remark', remarkFilter);
+
+  let dataQ = db.from('products')
     .select('seq, serial, is_active, remark, remark_updated_at, scan_limit')
     .eq('batch_code', batchCode)
     .order('seq', { ascending: true })
-    .limit(100000);
+    .range(offset, offset + limit - 1);
+  if (remarkFilter) dataQ = dataQ.eq('remark', remarkFilter);
 
-  if (remarkFilter) q = q.eq('remark', remarkFilter);
+  const [countRes, dataRes] = await Promise.all([countQ, dataQ]);
+  if (dataRes.error) throw dataRes.error;
 
-  const { data, error } = await q;
-  if (error) throw error;
-  const rows = data || [];
-  if (!rows.length) return rows;
+  const rows  = dataRes.data || [];
+  const total = countRes.count ?? 0;
+  const pages = total > 0 ? Math.ceil(total / limit) : 1;
 
-  // Enrich with scan count per serial
+  if (!rows.length) return { rows: [], total, page, pages };
+
+  // Scan counts for this page only — max 200 serials, safe URL length (~2.4 KB)
   const serials = rows.map(r => r.serial);
   const { data: scanRows } = await db
     .from('scan_logs')
@@ -300,15 +310,20 @@ async function getSerialsByBatch(batchCode, { remarkFilter } = {}) {
     scanCount[s.serial] = (scanCount[s.serial] || 0) + 1;
   }
 
-  return rows.map(r => ({
-    seq:                r.seq,
-    serial:             r.serial,
-    is_active:          r.is_active,
-    remark:             r.remark || null,
-    remark_updated_at:  r.remark_updated_at || null,
-    scan_count:         scanCount[r.serial] || 0,
-    scan_limit:         r.scan_limit ?? null,
-  }));
+  return {
+    rows: rows.map(r => ({
+      seq:               r.seq,
+      serial:            r.serial,
+      is_active:         r.is_active,
+      remark:            r.remark || null,
+      remark_updated_at: r.remark_updated_at || null,
+      scan_count:        scanCount[r.serial] || 0,
+      scan_limit:        r.scan_limit ?? null,
+    })),
+    total,
+    page,
+    pages,
+  };
 }
 
 async function applyRemarkToRange(batchCode, fromSeq, toSeq, remarkText) {
@@ -371,10 +386,10 @@ async function getBatchDetail(batchCode) {
 
   if (serials.length) {
     const [totalRes, verifiedRes, warningRes, fakeRes, alertRes] = await Promise.all([
-      db.from('scan_logs').select('id', { count: 'exact', head: true }).in('serial', serials),
-      db.from('scan_logs').select('id', { count: 'exact', head: true }).in('serial', serials).eq('result', 'verified'),
-      db.from('scan_logs').select('id', { count: 'exact', head: true }).in('serial', serials).eq('result', 'warning'),
-      db.from('scan_logs').select('id', { count: 'exact', head: true }).in('serial', serials).eq('result', 'fake'),
+      db.from('scan_logs').select('id', { count: 'exact', head: true }).eq('batch_code', batchCode),
+      db.from('scan_logs').select('id', { count: 'exact', head: true }).eq('batch_code', batchCode).eq('result', 'verified'),
+      db.from('scan_logs').select('id', { count: 'exact', head: true }).eq('batch_code', batchCode).eq('result', 'warning'),
+      db.from('scan_logs').select('id', { count: 'exact', head: true }).eq('batch_code', batchCode).eq('result', 'fake'),
       db.from('alerts').select('id', { count: 'exact', head: true }).eq('batch_code', batchCode).eq('resolved', false),
     ]);
     totalScans   = totalRes.count   || 0;
@@ -404,7 +419,7 @@ async function getBatchDetail(batchCode) {
 
 // ── Scan logs ─────────────────────────────────────────────────────
 
-async function logScan({ serial, ip, country, city, lat, lng, userAgent, deviceToken, result, flagReason, isp }) {
+async function logScan({ serial, ip, country, city, lat, lng, userAgent, deviceToken, result, flagReason, isp, batchCode }) {
   const { data, error } = await db.from('scan_logs').insert({
     serial,
     ip,
@@ -417,6 +432,7 @@ async function logScan({ serial, ip, country, city, lat, lng, userAgent, deviceT
     result,
     flag_reason:  flagReason || null,
     isp:          isp || null,
+    batch_code:   batchCode || null,
   }).select('id').single();
   if (error) throw error;
   return data;
@@ -440,9 +456,10 @@ async function getScanLogs({ result, batchCode, from, to, limit = 100, offset = 
     .order('scanned_at', { ascending: false })
     .range(offset, offset + limit - 1);
 
-  if (result) q = q.eq('result', result);
-  if (from)   q = q.gte('scanned_at', from);
-  if (to)     q = q.lte('scanned_at', to);
+  if (result)    q = q.eq('result', result);
+  if (batchCode) q = q.eq('batch_code', batchCode);
+  if (from)      q = q.gte('scanned_at', from);
+  if (to)        q = q.lte('scanned_at', to);
 
   const { data, error } = await q;
   if (error) throw error;
@@ -450,7 +467,7 @@ async function getScanLogs({ result, batchCode, from, to, limit = 100, offset = 
   const rows = data || [];
   if (!rows.length) return rows;
 
-  // Enrich with product info (no FK join — allows fake/invalid serials)
+  // Enrich with product info for this page only — small set, safe .in()
   const serials = [...new Set(rows.map(r => r.serial))];
   const { data: prods } = await db
     .from('products')
@@ -458,11 +475,7 @@ async function getScanLogs({ result, batchCode, from, to, limit = 100, offset = 
     .in('serial', serials);
 
   const prodMap = Object.fromEntries((prods || []).map(p => [p.serial, p]));
-  const enriched = rows.map(r => ({ ...r, products: prodMap[r.serial] || null }));
-
-  return batchCode
-    ? enriched.filter(r => r.products?.batch_code === batchCode)
-    : enriched;
+  return rows.map(r => ({ ...r, products: prodMap[r.serial] || null }));
 }
 
 // ── Alerts ────────────────────────────────────────────────────────
@@ -656,66 +669,74 @@ async function getBatchScanSummary() {
 }
 
 async function getTopScannedSerials(batchCode, limit = 30) {
-  const { data: prods, error: pErr } = await db
-    .from('products')
-    .select('serial, seq, remark, scan_limit, product_name')
-    .eq('batch_code', batchCode);
-  if (pErr) throw pErr;
-  if (!prods?.length) return [];
-
-  const serials = prods.map(p => p.serial);
-  const { data: scanRows } = await db
+  // Query scan_logs by batch_code directly — avoids loading all products first
+  const { data: scanRows, error: sErr } = await db
     .from('scan_logs')
     .select('serial, result')
-    .in('serial', serials);
+    .eq('batch_code', batchCode)
+    .limit(50000);
+  if (sErr) throw sErr;
+  if (!scanRows?.length) return [];
 
   const scanMap = {};
-  for (const s of (scanRows || [])) {
+  for (const s of scanRows) {
     if (!scanMap[s.serial]) scanMap[s.serial] = { verified: 0, warning: 0, fake: 0, inactive: 0, total: 0 };
     scanMap[s.serial][s.result] = (scanMap[s.serial][s.result] || 0) + 1;
     scanMap[s.serial].total++;
   }
 
-  return prods
-    .filter(p => scanMap[p.serial])
-    .map(p => ({ serial: p.serial, seq: p.seq, remark: p.remark, scan_limit: p.scan_limit, ...scanMap[p.serial] }))
-    .sort((a, b) => b.total - a.total)
+  // Top N serials by scan count
+  const topSerials = Object.keys(scanMap)
+    .sort((a, b) => scanMap[b].total - scanMap[a].total)
     .slice(0, limit);
+
+  // Enrich with product meta — only top N serials (small set, safe .in())
+  const { data: prods } = await db
+    .from('products')
+    .select('serial, seq, remark, scan_limit, product_name')
+    .in('serial', topSerials);
+
+  const prodMap = Object.fromEntries((prods || []).map(p => [p.serial, p]));
+
+  return topSerials.map(serial => ({
+    serial,
+    seq:          prodMap[serial]?.seq          ?? null,
+    remark:       prodMap[serial]?.remark       ?? null,
+    scan_limit:   prodMap[serial]?.scan_limit   ?? null,
+    product_name: prodMap[serial]?.product_name ?? null,
+    ...scanMap[serial],
+  }));
 }
 
 async function getSerialNetworkData(batchCode) {
-  const { data: prods, error: pErr } = await db
-    .from('products')
-    .select('serial, seq')
-    .eq('batch_code', batchCode)
-    .order('seq', { ascending: true })
-    .limit(100000);
-  if (pErr) throw pErr;
-  if (!prods?.length) return [];
-
-  const serials = prods.map(p => p.serial);
-  const seqMap  = Object.fromEntries(prods.map(p => [p.serial, p.seq]));
-
+  // Query scan_logs by batch_code — no need to load all products first
   const { data: scans, error: sErr } = await db
     .from('scan_logs')
     .select('serial, ip, isp, country, city, result, scanned_at')
-    .in('serial', serials)
+    .eq('batch_code', batchCode)
     .order('scanned_at', { ascending: false })
     .limit(10000);
   if (sErr) throw sErr;
+  if (!scans?.length) return [];
 
   const serialMap = {};
-  for (const s of (scans || [])) {
+  for (const s of scans) {
     if (!serialMap[s.serial]) serialMap[s.serial] = [];
     serialMap[s.serial].push({
-      ip:         s.ip         || null,
-      isp:        s.isp        || null,
-      country:    s.country    || null,
-      city:       s.city       || null,
-      result:     s.result,
-      scanned_at: s.scanned_at,
+      ip: s.ip || null, isp: s.isp || null,
+      country: s.country || null, city: s.city || null,
+      result: s.result, scanned_at: s.scanned_at,
     });
   }
+
+  // Enrich with seq for sorting — only scanned serials (small set, safe .in())
+  const scannedSerials = Object.keys(serialMap);
+  const { data: prods } = await db
+    .from('products')
+    .select('serial, seq')
+    .in('serial', scannedSerials);
+
+  const seqMap = Object.fromEntries((prods || []).map(p => [p.serial, p.seq]));
 
   return Object.entries(serialMap)
     .map(([serial, scanList]) => ({

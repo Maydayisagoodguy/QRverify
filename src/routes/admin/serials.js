@@ -18,9 +18,11 @@ module.exports = async function serialRoutes(fastify) {
     preHandler: [adminRateLimit],
   }, async (request, reply) => {
     const { code } = request.params;
-    const { remark } = request.query;
+    const { remark, page = '1', limit = '200' } = request.query;
+    const pg  = Math.max(1, parseInt(page,  10) || 1);
+    const lim = Math.min(Math.max(1, parseInt(limit, 10) || 200), 500);
     try {
-      return await db.getSerialsByBatch(code, { remarkFilter: remark || null });
+      return await db.getSerialsByBatch(code, { remarkFilter: remark || null, page: pg, limit: lim });
     } catch (err) {
       request.log.error({ err }, 'getSerialsByBatch failed');
       return reply.code(500).send({ error: 'Database error', code: 'DB_ERROR' });
