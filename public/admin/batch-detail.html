@@ -603,8 +603,9 @@
       document.getElementById('stat-created').textContent = 'Created ' + fmtDate(batch.created_at);
 
       // Update placeholder hints so admin knows valid range
+      const minSeq = stats.minSeq || 1;
       const maxSeq = stats.maxSeq || stats.total || 1;
-      document.getElementById('from-seq').placeholder = '1';
+      document.getElementById('from-seq').placeholder = String(minSeq);
       document.getElementById('to-seq').placeholder   = String(maxSeq);
       document.getElementById('from-seq').value = '';
       document.getElementById('to-seq').value   = '';

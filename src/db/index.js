@@ -411,6 +411,7 @@ async function getBatchDetail(batchCode) {
       fake,
       activeAlerts,
       remarkCount,
+      minSeq:       products[0]?.seq    || 0,
       maxSeq:       maxSeqRes.data?.seq || 0,
       scan_limit:   batch.scan_limit ?? null,
     },
