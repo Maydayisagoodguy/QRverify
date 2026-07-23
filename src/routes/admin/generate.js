@@ -11,9 +11,8 @@ function scheduleCleanup(jobId) {
   setTimeout(() => jobs.delete(jobId), 5 * 60 * 1000);
 }
 
-// Max serials per batch: seqCode(89999) = 10000+89999 = 99999 (5 digits)
-// seqCode(90000) = 100000 (6 digits) — breaks the serial format
-const MAX_SEQ_PER_BATCH = 89999;
+// Max per single request — admin can run multiple requests for larger quantities
+const MAX_PER_REQUEST = 100000;
 
 module.exports = async function generateRoutes(fastify) {
 
@@ -29,21 +28,19 @@ module.exports = async function generateRoutes(fastify) {
     if (!qty || qty < 1) {
       return reply.code(400).send({ error: 'quantity must be at least 1', code: 'INVALID_PARAM' });
     }
+    if (qty > MAX_PER_REQUEST) {
+      return reply.code(400).send({
+        error: `Maximum ${MAX_PER_REQUEST.toLocaleString()} QR codes per request. Submit multiple requests for larger quantities.`,
+        code: 'QUANTITY_TOO_LARGE',
+      });
+    }
 
     let startSeq;
     try {
-      startSeq = (await db.getMaxSeq(batch_code)) + 1;
+      startSeq = (await db.getMaxGlobalSeq()) + 1;
     } catch (err) {
-      request.log.error({ err }, 'getMaxSeq failed');
+      request.log.error({ err }, 'getMaxGlobalSeq failed');
       return reply.code(500).send({ error: 'Database error', code: 'DB_ERROR' });
-    }
-
-    if (startSeq + qty - 1 > MAX_SEQ_PER_BATCH) {
-      const remaining = Math.max(0, MAX_SEQ_PER_BATCH - startSeq + 1);
-      return reply.code(400).send({
-        error: `This batch can only hold ${remaining.toLocaleString()} more serials (max 89,999 per batch code). Use a different batch code for additional units.`,
-        code: 'BATCH_CAPACITY_EXCEEDED',
-      });
     }
 
     let batchMeta, products;

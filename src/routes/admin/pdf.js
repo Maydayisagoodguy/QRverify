@@ -14,12 +14,19 @@ function scheduleCleanup(jobId) {
 module.exports = async function pdfRoutes(fastify) {
 
   // ── POST /admin/pdf/start/:code — kick off background PDF generation ──
+  // Optional query params: ?offset=N&limit=M&part=P&parts=T
+  // offset/limit: section of the batch to generate (default: whole batch)
+  // part/parts:   used only for filename labeling (part 2 of 5, etc.)
   fastify.post('/pdf/start/:code', { preHandler: [adminRateLimit] }, async (request, reply) => {
     const { code } = request.params;
+    const offset = request.query.offset ? parseInt(request.query.offset, 10) : 0;
+    const limit  = request.query.limit  ? parseInt(request.query.limit,  10) : null;
+    const part   = request.query.part   ? parseInt(request.query.part,   10) : null;
+    const parts  = request.query.parts  ? parseInt(request.query.parts,  10) : null;
 
     let products;
     try {
-      products = await db.getBatchProductsForExport(code);
+      products = await db.getBatchProductsForExport(code, { offset, limit });
     } catch (err) {
       request.log.error({ err }, 'getBatchProductsForExport failed');
       return reply.code(500).send({ error: 'Database error', code: 'DB_ERROR' });
@@ -27,6 +34,10 @@ module.exports = async function pdfRoutes(fastify) {
     if (!products || !products.length) {
       return reply.code(404).send({ error: 'Batch not found or empty', code: 'NOT_FOUND' });
     }
+
+    const filename = (part && parts)
+      ? `${code}-part-${part}-of-${parts}.pdf`
+      : `${code}-stickers.pdf`;
 
     const jobId = crypto.randomUUID();
     const job = {
@@ -36,6 +47,7 @@ module.exports = async function pdfRoutes(fastify) {
       buffer:    null,
       error:     null,
       batchCode: code,
+      filename,
       listeners: new Set(),
     };
     pdfJobs.set(jobId, job);
@@ -122,7 +134,7 @@ module.exports = async function pdfRoutes(fastify) {
 
     return reply
       .type('application/pdf')
-      .header('Content-Disposition', `attachment; filename="${job.batchCode}-stickers.pdf"`)
+      .header('Content-Disposition', `attachment; filename="${job.filename}"`)
       .header('Content-Length', String(job.buffer.length))
       .send(job.buffer);
   });

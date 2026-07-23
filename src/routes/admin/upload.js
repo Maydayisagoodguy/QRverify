@@ -42,18 +42,19 @@ module.exports = async function uploadRoutes(fastify) {
       }
     }
 
-    const batchMaxSeq     = {};
-    const batchRelCounter = {};
-    for (const [code] of batches) {
-      batchMaxSeq[code] = await db.getMaxSeq(code);
+    // Global seq counter — guarantees serial uniqueness across all batches
+    let globalSeq;
+    try {
+      globalSeq = await db.getMaxGlobalSeq();
+    } catch (err) {
+      request.log.error({ err }, 'getMaxGlobalSeq failed');
+      return reply.code(500).send({ error: 'Database error', code: 'DB_ERROR' });
     }
 
     for (const p of products) {
-      const code = p.batch_code;
-      batchRelCounter[code] = (batchRelCounter[code] || 0) + 1;
-      const finalSeq = batchMaxSeq[code] + batchRelCounter[code];
-      p.seq    = finalSeq;
-      p.serial = buildSerial(code, finalSeq);
+      globalSeq++;
+      p.seq    = globalSeq;
+      p.serial = buildSerial(p.batch_code, globalSeq);
       p.hmac   = generateHMAC(p.serial);
       delete p._relSeq;
     }

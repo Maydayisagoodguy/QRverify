@@ -233,27 +233,33 @@ async function getBatchProducts(batchCode) {
   return data || [];
 }
 
-async function getBatchProductsForExport(batchCode) {
-  const { data, error } = await db
+async function getBatchProductsForExport(batchCode, { offset = 0, limit = null } = {}) {
+  let q = db
     .from('products')
     .select('serial, hmac, seq, product_name, batch_code')
     .eq('batch_code', batchCode)
-    .order('seq', { ascending: true })
-    .limit(100000);
+    .order('seq', { ascending: true });
+
+  if (limit !== null) {
+    q = q.range(offset, offset + limit - 1);
+  }
+
+  const { data, error } = await q;
   if (error) throw error;
   return data || [];
 }
 
-async function getMaxSeq(batchCode) {
+// Global seq counter across ALL batches — guarantees serial uniqueness forever.
+// Floor at 1,000,000 so the first new serial has a 7-digit seq (1000001).
+async function getMaxGlobalSeq() {
   const { data, error } = await db
     .from('products')
     .select('seq')
-    .eq('batch_code', batchCode)
     .order('seq', { ascending: false })
     .limit(1)
     .maybeSingle();
   if (error) throw error;
-  return data?.seq || 0;
+  return Math.max(data?.seq || 0, 1000000);
 }
 
 async function getSerialsByBatch(batchCode, { remarkFilter } = {}) {
@@ -760,7 +766,7 @@ module.exports = {
   deactivateByBatch,
   getBatchProducts,
   getBatchProductsForExport,
-  getMaxSeq,
+  getMaxGlobalSeq,
   getSerialsByBatch,
   applyRemarkToRange,
   clearRemarkRange,

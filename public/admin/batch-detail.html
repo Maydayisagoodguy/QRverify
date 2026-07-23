@@ -498,6 +498,7 @@
   let _batchScanLimit  = null;
   let _globalScanLimit = 1;
   let _serialPrefix    = '';   // first 5 chars of any serial in this batch (prefix + batch tag)
+  let _batchTotal      = 0;    // total units in this batch (for PDF section logic)
 
   function seqToSerial(seq) {
     const n = parseInt(seq, 10);
@@ -574,6 +575,7 @@
       document.title = batchCode + ' — Admin';
 
       _batchScanLimit = stats.scan_limit ?? null;
+      _batchTotal     = stats.total || 0;
 
       document.getElementById('stat-total').textContent   = (stats.total || 0).toLocaleString();
       document.getElementById('stat-scans').textContent   = (stats.totalScans || 0).toLocaleString();
@@ -838,84 +840,128 @@
     if (btn) { btn.disabled = false; btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download PDF Stickers`; }
   }
 
+  const SECTION_SIZE = 2000; // QRs per PDF section — safe for free Render
+
+  function _dlBtnHTML() {
+    return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download PDF Stickers`;
+  }
+
+  // Wait for a single PDF job via SSE. Returns true on success, false on failure.
+  function _waitForSection(jobId, sectionTotal, sectionLabel) {
+    return new Promise((resolve) => {
+      if (_pdfES) { _pdfES.close(); _pdfES = null; }
+      const es = new EventSource(`/admin/pdf/progress/${jobId}`);
+      _pdfES = es;
+
+      es.onmessage = (e) => {
+        const data = JSON.parse(e.data);
+        if (data.type === 'progress') {
+          const pct = sectionTotal > 0 ? (data.done / sectionTotal) * 100 : 0;
+          document.getElementById('pdf-prog-bar').style.width = pct + '%';
+          document.getElementById('pdf-prog-count').textContent =
+            `${data.done.toLocaleString()} / ${sectionTotal.toLocaleString()} QR codes`;
+          const elapsed = (Date.now() - _pdfStartTime) / 1000;
+          if (data.done > 0 && elapsed > 0.5) {
+            const rate     = data.done / elapsed;
+            const secsLeft = (sectionTotal - data.done) / rate;
+            const eta      = secsLeft < 60 ? `~${Math.ceil(secsLeft)}s` : `~${Math.ceil(secsLeft / 60)}m`;
+            document.getElementById('pdf-prog-eta').textContent =
+              `${Math.round(pct)}%${sectionLabel ? ' · ' + sectionLabel : ''} · ${eta} remaining`;
+          }
+        } else if (data.type === 'done') {
+          es.close(); _pdfES = null;
+          document.getElementById('pdf-prog-bar').style.width = '100%';
+          resolve(true);
+        } else if (data.type === 'error') {
+          es.close(); _pdfES = null;
+          document.getElementById('pdf-prog-bar').style.background = '#EF4444';
+          document.getElementById('pdf-overlay-title').textContent = 'Generation Failed';
+          document.getElementById('pdf-prog-eta').textContent = data.message;
+          toast('PDF failed: ' + data.message, 'error');
+          resolve(false);
+        }
+      };
+
+      es.onerror = () => {
+        if (es.readyState === EventSource.CLOSED) return;
+        es.close(); _pdfES = null;
+        document.getElementById('pdf-prog-eta').textContent = 'Connection lost — try again';
+        resolve(false);
+      };
+    });
+  }
+
   async function downloadZip() {
+    const total = _batchTotal;
+    if (!total) { toast('No QR codes in this batch', 'error'); return; }
+
     const btn = document.querySelector('.btn-primary.btn-sm');
     if (btn) { btn.disabled = true; btn.textContent = 'Starting…'; }
 
-    let res;
-    try {
-      const r = await fetch(`/admin/pdf/start/${encodeURIComponent(batchCode)}`, { method: 'POST' });
-      if (!r.ok) { const e = await r.json(); throw new Error(e.error || 'Failed to start'); }
-      res = await r.json();
-    } catch (err) {
-      if (btn) { btn.disabled = false; btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download PDF Stickers`; }
-      toast('Failed: ' + err.message, 'error');
-      return;
-    }
-
-    const { jobId, total } = res;
+    const sections = Math.ceil(total / SECTION_SIZE);
 
     // Show overlay
-    const overlay = document.getElementById('pdf-overlay');
-    overlay.style.display = 'block';
-    document.getElementById('pdf-overlay-title').textContent = 'Generating PDF…';
-    document.getElementById('pdf-prog-count').textContent = `0 / ${total.toLocaleString()} QR codes`;
-    document.getElementById('pdf-prog-eta').textContent = 'Starting…';
-    document.getElementById('pdf-prog-bar').style.width = '0%';
+    document.getElementById('pdf-overlay').style.display = 'block';
     document.getElementById('pdf-prog-bar').style.background = '#B81F24';
 
-    _pdfStartTime = Date.now();
+    for (let s = 0; s < sections; s++) {
+      const offset      = s * SECTION_SIZE;
+      const sectionQty  = Math.min(SECTION_SIZE, total - offset);
+      const sectionLabel = sections > 1 ? `Section ${s + 1} of ${sections}` : '';
+      const title        = sections > 1 ? `PDF ${s + 1} of ${sections} — Generating…` : 'Generating PDF…';
 
-    if (_pdfES) _pdfES.close();
-    const es = new EventSource(`/admin/pdf/progress/${jobId}`);
-    _pdfES = es;
+      document.getElementById('pdf-overlay-title').textContent = title;
+      document.getElementById('pdf-prog-count').textContent    = `0 / ${sectionQty.toLocaleString()} QR codes`;
+      document.getElementById('pdf-prog-eta').textContent      = 'Starting…';
+      document.getElementById('pdf-prog-bar').style.width      = '0%';
+      document.getElementById('pdf-prog-bar').style.background = '#B81F24';
+      _pdfStartTime = Date.now();
 
-    es.onmessage = (e) => {
-      const data = JSON.parse(e.data);
-
-      if (data.type === 'progress') {
-        const pct = data.total > 0 ? (data.done / data.total) * 100 : 0;
-        document.getElementById('pdf-prog-bar').style.width = pct + '%';
-        document.getElementById('pdf-prog-count').textContent = `${data.done.toLocaleString()} / ${data.total.toLocaleString()} QR codes`;
-        const elapsed = (Date.now() - _pdfStartTime) / 1000;
-        if (data.done > 0 && elapsed > 1) {
-          const rate = data.done / elapsed;
-          const secsLeft = (data.total - data.done) / rate;
-          const eta = secsLeft < 60 ? `~${Math.ceil(secsLeft)}s remaining` : `~${Math.ceil(secsLeft / 60)}m remaining`;
-          document.getElementById('pdf-prog-eta').textContent = `${Math.round(pct)}% · ${eta}`;
-        }
-
-      } else if (data.type === 'done') {
-        es.close(); _pdfES = null;
-        document.getElementById('pdf-prog-bar').style.width = '100%';
-        document.getElementById('pdf-prog-bar').style.background = '#16A34A';
-        document.getElementById('pdf-overlay-title').textContent = 'PDF Ready — Downloading…';
-        document.getElementById('pdf-prog-count').textContent = `${total.toLocaleString()} / ${total.toLocaleString()} QR codes`;
-        document.getElementById('pdf-prog-eta').textContent = 'Complete';
-        // Trigger download
-        const a = document.createElement('a');
-        a.href = `/admin/pdf/download/${data.jobId}`;
-        a.download = `${batchCode}-stickers.pdf`;
-        document.body.appendChild(a); a.click(); a.remove();
-        if (btn) { btn.disabled = false; btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download PDF Stickers`; }
-        setTimeout(closePdfOverlay, 3000);
-
-      } else if (data.type === 'error') {
-        es.close(); _pdfES = null;
-        document.getElementById('pdf-prog-bar').style.background = '#EF4444';
-        document.getElementById('pdf-overlay-title').textContent = 'Generation Failed';
-        document.getElementById('pdf-prog-eta').textContent = data.message;
-        if (btn) { btn.disabled = false; btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download PDF Stickers`; }
-        toast('PDF generation failed: ' + data.message, 'error');
+      // Start section job
+      let jobId;
+      try {
+        const qs  = `offset=${offset}&limit=${sectionQty}&part=${s + 1}&parts=${sections}`;
+        const r   = await fetch(`/admin/pdf/start/${encodeURIComponent(batchCode)}?${qs}`, { method: 'POST' });
+        if (!r.ok) { const e = await r.json(); throw new Error(e.error || 'Failed to start'); }
+        ({ jobId } = await r.json());
+      } catch (err) {
+        if (btn) { btn.disabled = false; btn.innerHTML = _dlBtnHTML(); }
+        toast('Failed: ' + err.message, 'error');
+        return;
       }
-    };
 
-    es.onerror = () => {
-      if (es.readyState === EventSource.CLOSED) return;
-      es.close(); _pdfES = null;
-      document.getElementById('pdf-prog-eta').textContent = 'Connection lost — try again';
-      if (btn) { btn.disabled = false; btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download PDF Stickers`; }
-    };
+      const ok = await _waitForSection(jobId, sectionQty, sectionLabel);
+      if (!ok) {
+        if (btn) { btn.disabled = false; btn.innerHTML = _dlBtnHTML(); }
+        return;
+      }
+
+      // Trigger file download without navigating away
+      const filename = sections > 1
+        ? `${batchCode}-part-${s + 1}-of-${sections}.pdf`
+        : `${batchCode}-stickers.pdf`;
+      const a = document.createElement('a');
+      a.href     = `/admin/pdf/download/${jobId}`;
+      a.download = filename;
+      document.body.appendChild(a); a.click(); a.remove();
+
+      // Brief pause so browser registers the download before next section starts
+      if (s < sections - 1) {
+        document.getElementById('pdf-prog-bar').style.background = '#16A34A';
+        document.getElementById('pdf-overlay-title').textContent = `Part ${s + 1} downloaded — starting ${s + 2}…`;
+        await new Promise(r => setTimeout(r, 1000));
+      }
+    }
+
+    // All sections done
+    document.getElementById('pdf-prog-bar').style.background   = '#16A34A';
+    document.getElementById('pdf-prog-bar').style.width        = '100%';
+    document.getElementById('pdf-overlay-title').textContent   =
+      sections > 1 ? `All ${sections} PDFs downloaded ✓` : 'PDF Downloaded ✓';
+    document.getElementById('pdf-prog-eta').textContent        = 'Complete';
+    document.getElementById('pdf-prog-count').textContent      = `${total.toLocaleString()} QR codes`;
+    if (btn) { btn.disabled = false; btn.innerHTML = _dlBtnHTML(); }
+    setTimeout(closePdfOverlay, 3000);
   }
 
   // ── Refresh all ────────────────────────────────────────────────────

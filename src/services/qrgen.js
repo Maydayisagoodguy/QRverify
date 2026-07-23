@@ -10,41 +10,37 @@ const REQUIRED_COLS = ['batch_code', 'quantity'];
 
 // ── Serial number design ──────────────────────────────────────────────────────
 //
-// Format: {PREFIX 3}{BATCH_TAG 2}{SEQ_CODE 5}  = 10 chars, always
+// Format: {PREFIX 2}{BATCH_TAG 2}{GLOBAL_SEQ 7}  = 11 chars, always
 //
-//   PREFIX    = config.serialPrefix (e.g. "FM0") — brand identifier
-//   BATCH_TAG = 2-digit (10–99) HMAC fingerprint of the batch code
-//               → same batch always gets same tag; visually groups all products
-//                 of one batch (e.g. all "FM071…" serials = BATCH-TEST-001)
-//   SEQ_CODE  = 5-digit sequential number: 10001 + (seq - 1) = 10001–99999
-//               → seq 1 = 10001, seq 2 = 10002, … seq 1000 = 11000
-//               → no leading zeros; person pasting stickers sees clear order
-//               → admin selects "seq 1 to 1000" from DB for any batch
+//   PREFIX     = config.serialPrefix (e.g. "FM") — brand identifier
+//   BATCH_TAG  = 2-digit (10–99) HMAC fingerprint of the batch code
+//                → same batch always gets same tag; visually groups a batch
+//                → visual only — uniqueness is guaranteed by GLOBAL_SEQ
+//   GLOBAL_SEQ = 7-digit globally unique counter across ALL batches
+//                → starts at 1000001, max 9999999 = 8,999,999 total QRs
+//                → collision impossible: no two products ever share a seq
 //
-// Examples for BATCH-TEST-001 (tag = 18):
-//   seq 1    → FM0181000 1  → FM01810001
-//   seq 10   → FM01810010
-//   seq 1000 → FM01811000
+// Examples for BATCH-TEST-001 (tag = 23):
+//   first global seq 1000001 → FM231000001
+//   second                   → FM231000002
+//   1000th                   → FM231001000
 
 // 2-digit batch tag (10–99) — deterministic from batch code + HMAC secret
+// Visual grouping only — uniqueness is guaranteed by the global seq, not this tag
 function batchTag(batchCode) {
   const h = crypto.createHmac('sha256', config.hmacSecret)
     .update(`bt:${batchCode}`).digest();
   return String(10 + (h.readUInt32BE(0) % 90));
 }
 
-// 5-digit sequential code: starts at 10001, increments by 1, no leading zeros
-function seqCode(seq) {
-  return String(10000 + seq); // seq 1 → 10001, seq 89999 → 99999
-}
-
-// formatSeq: admin-facing display of raw seq number
+// formatSeq: admin-facing display of the global seq number
 function formatSeq(seq) {
   return String(seq);
 }
 
+// seq must be a globally unique integer (1000001–9999999)
 function buildSerial(batchCode, seq) {
-  return `${config.serialPrefix}${batchTag(batchCode)}${seqCode(seq)}`;
+  return `${config.serialPrefix}${batchTag(batchCode)}${seq}`;
 }
 
 function generateHMAC(serial) {
