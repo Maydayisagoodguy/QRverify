@@ -295,7 +295,7 @@ function processForm({ batchCode, batchTag, quantity, productName, targetCountry
   if (!quantity || quantity < 1) throw new Error('quantity must be at least 1');
   if (startSeq + quantity - 1 > 999999) throw new Error('Batch would exceed 999,999 serials per tag');
 
-  const name = productName ? String(productName).trim() : batchCode;
+  const name = productName ? String(productName).trim() : '';   // blank when no product name given
 
   const batchMeta = {
     batchCode,

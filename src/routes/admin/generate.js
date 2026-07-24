@@ -55,7 +55,7 @@ module.exports = async function generateRoutes(fastify) {
     try {
       await db.upsertBatch({
         batchCode: batch_code,
-        productName: product_name || null,
+        productName: product_name || '',   // blank allowed; '' satisfies NOT NULL (null does not)
         manufacturer: null, countryOfOrigin: null, distributor: null,
         regionExpected: null, productImageUrl: null,
         targetCountry: target_country || null,
