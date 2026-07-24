@@ -132,10 +132,10 @@ function drawSticker(doc, sx, sy, product, url) {
   const qrY  = sy + 12;
   drawQRVector(doc, url, qrX, qrY, QR_S);
 
-  // ── Serial below QR ───────────────────────────────────────────────────────
+  // ── Batch code below QR (serial stays encoded in the QR, just not printed) ──
   doc.font('Courier-Bold').fontSize(7.5)
     .fillColor('#333333')
-    .text(product.serial, sx, sy + 150, { width: 172, align: 'center' });
+    .text(product.batch_code, sx, sy + 150, { width: 172, align: 'center' });
 
   // ── Vertical divider ──────────────────────────────────────────────────────
   doc.save()
