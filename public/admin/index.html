@@ -2772,7 +2772,7 @@
                       <input type="number" min="1" max="999" id="lnew-limit-${esc(b.batch_code)}" placeholder="${effective}"
                         style="width:80px;height:32px;padding:0 8px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;font-size:13px;font-weight:600;text-align:center;outline:none;" />
                     </label>
-                    <button class="btn btn-primary btn-sm" style="margin-top:16px;" onclick="addSerialLimit('${esc(b.batch_code)}')">Apply</button>
+                    <button class="btn btn-primary btn-sm" style="margin-top:16px;" onclick="addSerialLimit('${esc(b.batch_code)}', ${b.total})">Apply</button>
                   </div>
                 </div>
 
@@ -2865,12 +2865,13 @@
       }
     }
 
-    async function addSerialLimit(batchCode) {
+    async function addSerialLimit(batchCode, total) {
       const from  = parseInt(document.getElementById(`lnew-from-${batchCode}`).value, 10);
       const to    = parseInt(document.getElementById(`lnew-to-${batchCode}`).value, 10);
       const limit = parseInt(document.getElementById(`lnew-limit-${batchCode}`).value, 10);
       if (!from || !to || isNaN(limit)) { toast('Enter from seq, to seq, and limit', 'error'); return; }
       if (from > to) { toast('From must be ≤ To', 'error'); return; }
+      if (total && to > total) { toast(`Range exceeds this batch — it has ${total} units (1–${total})`, 'error'); return; }
       if (limit < 1 || limit > 999) { toast('Limit must be 1–999', 'error'); return; }
       try {
         await api(`/admin/batches/${encodeURIComponent(batchCode)}/serials/scan-limit`, {

@@ -876,6 +876,7 @@
     if (!fromSeq || !toSeq || isNaN(limit)) { toast('Fill in From Seq, To Seq, and Limit', 'error'); return; }
     if (fromSeq > toSeq) { toast('From Seq must be ≤ To Seq', 'error'); return; }
     if (limit < 1 || limit > 999) { toast('Limit must be 1–999', 'error'); return; }
+    if (_batchTotal && toSeq > _batchTotal) { toast(`Range exceeds this batch — it has ${_batchTotal} units (1–${_batchTotal})`, 'error'); return; }
     try {
       await api(`/admin/batches/${encodeURIComponent(batchCode)}/serials/scan-limit`, {
         method: 'POST',
@@ -895,6 +896,7 @@
     const fromSeq = parseInt(document.getElementById('sl-from-seq').value, 10);
     const toSeq   = parseInt(document.getElementById('sl-to-seq').value, 10);
     if (!fromSeq || !toSeq) { toast('Enter From and To Seq to clear', 'error'); return; }
+    if (_batchTotal && toSeq > _batchTotal) { toast(`Range exceeds this batch — it has ${_batchTotal} units (1–${_batchTotal})`, 'error'); return; }
     await clearSerialLimitExact(fromSeq, toSeq);
   }
 
@@ -920,6 +922,7 @@
 
     if (!fromSeq || !toSeq || !remarkText) { toast('Fill in all remark fields', 'error'); return; }
     if (fromSeq > toSeq) { toast('From Seq must be ≤ To Seq', 'error'); return; }
+    if (_batchTotal && toSeq > _batchTotal) { toast(`Range exceeds this batch — it has ${_batchTotal} units (1–${_batchTotal})`, 'error'); return; }
 
     try {
       await api(`/admin/batches/${encodeURIComponent(batchCode)}/serials/remark`, {
@@ -940,6 +943,7 @@
     const fromSeq = parseInt(document.getElementById('from-seq').value, 10);
     const toSeq   = parseInt(document.getElementById('to-seq').value, 10);
     if (!fromSeq || !toSeq) { toast('Enter From and To Seq', 'error'); return; }
+    if (_batchTotal && toSeq > _batchTotal) { toast(`Range exceeds this batch — it has ${_batchTotal} units (1–${_batchTotal})`, 'error'); return; }
 
     try {
       await api(`/admin/batches/${encodeURIComponent(batchCode)}/serials/remark`, {

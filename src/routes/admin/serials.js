@@ -3,6 +3,30 @@
 const { adminRateLimit } = require('../../middleware/rateLimit');
 const db = require('../../db');
 
+// Reject a seq range that falls outside the batch's actual serials (1…maxSeq).
+// Sends the error response and returns false when invalid; returns true when OK.
+async function assertRangeInBatch(code, from_seq, to_seq, reply) {
+  let maxSeq;
+  try {
+    maxSeq = await db.getMaxBatchSeq(code);
+  } catch (err) {
+    reply.code(500).send({ error: 'Database error', code: 'DB_ERROR' });
+    return false;
+  }
+  if (maxSeq === 0) {
+    reply.code(400).send({ error: 'This batch has no serials', code: 'NO_SERIALS' });
+    return false;
+  }
+  if (Number(from_seq) < 1 || Number(to_seq) > maxSeq) {
+    reply.code(400).send({
+      error: `Range must be within 1–${maxSeq} (this batch has ${maxSeq} units)`,
+      code: 'RANGE_OUT_OF_BOUNDS',
+    });
+    return false;
+  }
+  return true;
+}
+
 module.exports = async function serialRoutes(fastify) {
 
   fastify.get('/batches/:code', {
@@ -56,6 +80,7 @@ module.exports = async function serialRoutes(fastify) {
     if (String(remark).trim().length === 0) {
       return reply.code(400).send({ error: 'remark cannot be empty', code: 'EMPTY_REMARK' });
     }
+    if (!(await assertRangeInBatch(code, from_seq, to_seq, reply))) return;
 
     try {
       await db.applyRemarkToRange(code, Number(from_seq), Number(to_seq), String(remark).trim());
@@ -96,6 +121,7 @@ module.exports = async function serialRoutes(fastify) {
     if (isNaN(num) || num < 1 || num > 999) {
       return reply.code(400).send({ error: 'limit must be 1–999', code: 'INVALID_VALUE' });
     }
+    if (!(await assertRangeInBatch(code, from_seq, to_seq, reply))) return;
 
     try {
       await db.setScanLimitForRange(code, Number(from_seq), Number(to_seq), num);
@@ -117,6 +143,7 @@ module.exports = async function serialRoutes(fastify) {
     if (!from_seq || !to_seq) {
       return reply.code(400).send({ error: 'from_seq and to_seq are required', code: 'MISSING_PARAM' });
     }
+    if (!(await assertRangeInBatch(code, from_seq, to_seq, reply))) return;
 
     try {
       await db.clearScanLimitForRange(code, Number(from_seq), Number(to_seq));
@@ -138,6 +165,7 @@ module.exports = async function serialRoutes(fastify) {
     if (!from_seq || !to_seq) {
       return reply.code(400).send({ error: 'from_seq and to_seq are required', code: 'MISSING_PARAM' });
     }
+    if (!(await assertRangeInBatch(code, from_seq, to_seq, reply))) return;
 
     try {
       await db.clearRemarkRange(code, Number(from_seq), Number(to_seq));
