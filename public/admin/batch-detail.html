@@ -759,11 +759,12 @@
         updateSeqHints();
       }
 
-      const effectiveLimit = _batchScanLimit ?? _globalScanLimit;
-
       tbody.innerHTML = rows.map(r => {
         const seq = r.seq != null ? r.seq.toLocaleString() : '—';
-        const exceeded = r.scan_count >= effectiveLimit;
+        // Effective limit per serial — mirrors verify.js: serial override → batch → global
+        const limit    = r.scan_limit ?? _batchScanLimit ?? _globalScanLimit;
+        // Exceeded only when scans go BEYOND the limit (e.g. the 2nd scan for a limit of 1)
+        const exceeded = r.scan_count > limit;
         const rowStyle = exceeded ? 'background:rgba(220,38,38,0.04);' : '';
         const status   = r.is_active
           ? '<span class="badge badge-active">Active</span>'
@@ -772,15 +773,12 @@
           ? `<span class="remark-pill" title="${esc(r.remark)}">${esc(r.remark)}</span>`
           : `<span style="color:var(--text-muted);font-size:12px;">—</span>`;
 
-        let scansHtml;
-        if (r.scan_count === 0) {
-          scansHtml = `<span style="color:var(--text-muted);">0</span>`;
-        } else if (exceeded) {
-          scansHtml = `<span style="font-weight:700;color:#DC2626;">${r.scan_count}</span>
+        // Always show count / limit; the EXCEEDED badge appears only when count > limit
+        const countColor = exceeded ? '#DC2626' : (r.scan_count === 0 ? 'var(--text-muted)' : 'var(--text-primary)');
+        let scansHtml = `<span style="font-weight:${exceeded ? 700 : 600};color:${countColor};">${r.scan_count} / ${limit}</span>`;
+        if (exceeded) {
+          scansHtml += `
             <span style="font-size:10px;font-weight:700;color:#DC2626;background:#FEE2E2;border:1px solid #FECACA;border-radius:4px;padding:1px 5px;margin-left:5px;letter-spacing:.03em;">EXCEEDED</span>`;
-        } else {
-          scansHtml = `<span style="font-weight:600;color:var(--text-primary);">${r.scan_count}</span>
-            <span style="font-size:10px;color:var(--text-muted);margin-left:4px;">/ ${effectiveLimit}</span>`;
         }
 
         return `<tr style="${rowStyle}">
